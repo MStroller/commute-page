@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="哪班車">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex">
+<title>哪班車最快</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
+<style>
+/* Layout: one column, a departure-board hero (the answer), then two runner-up rows; trip switch on top. */
+:root{
+  --bg:#eef2f1; --panel:#ffffff; --ink:#14212b; --muted:#5d6b73; --line:#d5dddd;
+  --accent:#0b6e7a; --accent-ink:#ffffff; --soon:#b4620a; --ok:#1d7a46; --warn:#b3261e;
+  --board:#14212b; --board-ink:#f4f1e6; --board-dim:#9fb0b8; --amber:#f2b43c;
+  --num:"Barlow Condensed","DIN Condensed","Arial Narrow",sans-serif;
+  --text:-apple-system,"PingFang TC","Noto Sans TC","Heiti TC","Microsoft JhengHei",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0e1417; --panel:#161f24; --ink:#e6ecee; --muted:#93a3ab; --line:#26333a;
+  --accent:#3fb5c2; --accent-ink:#06262a; --soon:#f0a24a; --ok:#5cc58a; --warn:#ff8a80;
+  --board:#05090b; --board-ink:#f4f1e6; --board-dim:#8095a0; --amber:#f2b43c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0e1417; --panel:#161f24; --ink:#e6ecee; --muted:#93a3ab; --line:#26333a;
+  --accent:#3fb5c2; --accent-ink:#06262a; --soon:#f0a24a; --ok:#5cc58a; --warn:#ff8a80;
+  --board:#05090b; --board-ink:#f4f1e6; --board-dim:#8095a0; --amber:#f2b43c; color-scheme:dark}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--text);font-size:16px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 28px}
+main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+.trips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.trips button{font:inherit;font-size:16px;font-weight:600;min-height:56px;border-radius:12px;border:1.5px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer;padding:6px 4px}
+.trips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.trips button.extra{grid-column:1/-1;min-height:40px;font-size:14px;font-weight:500}
+.trips button:focus-visible,.row button:focus-visible,.hero button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.hero{background:var(--board);color:var(--board-ink);border-radius:16px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px}
+.hero .lead{font-size:13px;letter-spacing:.08em;color:var(--board-dim)}
+.hero .plan{font-size:22px;font-weight:700;line-height:1.35;text-wrap:balance}
+.hero .sub{font-size:14px;color:var(--board-dim)}
+.hero .plan b{font-family:var(--num);font-size:34px;font-weight:700;color:var(--amber);letter-spacing:.01em;margin:0 2px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid #ffffff22;padding-top:10px}
+.stats div{display:flex;flex-direction:column;min-width:0}
+.stats span{font-size:12px;color:var(--board-dim)}
+.stats strong{font-family:var(--num);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
+.stats strong.soon{color:var(--amber)}
+.hero .acts{display:flex;gap:8px;flex-wrap:wrap}
+.btn{font:inherit;font-size:15px;font-weight:600;border-radius:10px;padding:10px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
+.btn.primary{background:var(--amber);color:#1b1404;border:0}
+.btn.ghost{background:transparent;color:inherit;border:1.5px solid currentColor;opacity:.9}
+.list{display:flex;flex-direction:column;gap:8px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}
+.row .sum{font-size:15px;font-weight:600;min-width:0}
+.row .meta{font-size:13px;color:var(--muted);min-width:0}
+.row .t{font-family:var(--num);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;grid-row:1/3;grid-column:2}
+.row .t small{display:block;font-family:var(--text);font-size:12px;color:var(--muted);font-weight:500}
+.row .acts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.row .btn{font-size:13px;padding:6px 10px;min-height:36px;border:1px solid var(--line);background:transparent;color:var(--ink)}
+.more summary{cursor:pointer;color:var(--muted);font-size:14px;padding:4px 2px}
+.foot{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);
+  padding:10px 16px;border-radius:999px;font-size:14px;max-width:calc(100% - 32px)}
+.pill{display:inline-block;font-size:12px;border-radius:999px;padding:1px 8px;border:1px solid currentColor;margin-left:6px;vertical-align:2px}
+.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.soon{color:var(--soon)}
+@media (prefers-reduced-motion:no-preference){.hero{transition:opacity .2s}}
+</style>
+
+</head>
+<body>
+<main>
+  <div class="trips" id="trips" role="group" aria-label="選路線"></div>
+  <section class="hero" id="hero" aria-live="polite">
+    <div class="lead" id="lead">計算中…</div>
+    <div class="plan" id="plan">載入路線資料</div>
+    <div class="sub" id="sub"></div>
+    <div class="stats">
+      <div><span id="s1l">出門</span><strong id="s1">—</strong></div>
+      <div><span>到達</span><strong id="s2">—</strong></div>
+      <div><span>全程</span><strong id="s3">—</strong></div>
+    </div>
+    <div class="acts" id="heroActs"></div>
+  </section>
+  <div class="list" id="list"></div>
+  <details class="more"><summary>其他路線</summary><div class="list" id="rest"></div></details>
+  <div class="foot" id="foot"></div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+const LIVE_URL = "https://tcgbusfs.blob.core.windows.net/blobbus/GetEstimateTime.gz";
+const $ = id => document.getElementById(id);
+let IT = null, H = {ride:{}, wait:{}, n_rides:0}, LIVE = null, liveErr = null, trip = null, ranked = [];
+const DECILES = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9];
+const CAN_TAP = !!(window.claude && window.claude.use);   // one-tap log only inside claude.ai (artifact db)
+
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const pad = n => String(n).padStart(2,"0");
+const hm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
+const mins = s => Math.max(0, Math.round(s/60));
+function slotKey(d){ return (d.getDay()===0||d.getDay()===6?"we":"wd") + pad(d.getHours()) + pad(Math.floor(d.getMinutes()/15)*15); }
+function period(d){ const h=d.getHours()+d.getMinutes()/60; return h>=6&&h<11?"am":h>=16&&h<21.5?"pm":"other"; }
+
+function defaultTrip(){
+  const saved = store.get("trip"), at = +store.get("tripAt")||0;
+  if (saved && Date.now()-at < 20*60*1000) return saved;
+  return new Date().getHours() < 12 ? "1" : "2";
+}
+
+// ---- statistics helpers
+function rideP(alt, d, p){ // seconds at percentile p (0.75 default) from history, else static x1.15
+  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to];
+  const dec = h && (h[period(d)] || h.all);
+  if (dec && dec.length===10){ let i = DECILES.indexOf(p); if(i<0) i=7; return dec[i]; }
+  return alt.ride_s * (p>=0.75 ? 1.15 : 1.0);
+}
+function rideCdf(alt, d, x){ // P(ride <= x) from deciles; null if no history
+  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to]; const dec = h && (h[period(d)] || h.all);
+  if (!dec) return null;
+  if (x < dec[0]) return 0.05; if (x >= dec[9]) return 0.95;
+  for (let i=0;i<9;i++) if (x < dec[i+1]) return DECILES[i] + (DECILES[i+1]-DECILES[i])*(x-dec[i])/Math.max(1,dec[i+1]-dec[i]);
+  return 0.95;
+}
+function typicalWait(alt, d){ // median seconds until next bus at this time slot
+  const w = H.wait[alt.rid+"|"+alt.from]; const s = w && w[slotKey(d)];
+  if (s && s[2] >= 3) return s[0];
+  return (alt.headway_s || 900) / 2;
+}
+function headway(alt){ return alt.headway_s || 900; }
+
+// ---- live ETA (works only where the page may fetch the city feed)
+async function loadLive(){
+  const t0 = performance.now();
+  try{
+    const r = await fetch(LIVE_URL, {cache:"no-store"});
+    if (!r.ok) throw new Error("HTTP "+r.status);
+    const j = await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).json();
+    const m = new Map();
+    for (const e of j.BusInfo) m.set(e.RouteID+"|"+e.StopID, +e.EstimateTime);
+    const [ds, ts] = j.EssentialInfo.UpdateTime.split(" ");
+    LIVE = {map:m, at:new Date(ds.replace(/\//g,"-")+"T"+ts+"+08:00"), ms:Math.round(performance.now()-t0)};
+    liveErr = null;
+  }catch(e){ LIVE = null; liveErr = e; }
+}
+function liveEta(alt, atDate){ // seconds from atDate until a bus of alt reaches alt.from, or null
+  if (!LIVE) return null;
+  const v = LIVE.map.get(alt.rid+"|"+alt.from);
+  if (v == null || v < 0) return v == null ? null : -1;
+  let left = v - (atDate - LIVE.at)/1000;
+  while (left < 0) left += headway(alt);
+  return left;
+}
+
+// ---- ranking: expected arrival for each option, starting now
+function evaluate(o, now){
+  if (!o.legs.length) return {o, arrive:new Date(+now + o.walk_after_s*1000), leave:now, firstWait:0, total:o.walk_after_s, live:false, pTransfer:null, pick:[]};
+  let t = +now, leave = null, firstWait = null, pTransfer = null, usedLive = false, pick = [];
+  o.legs.forEach((lg, n) => {
+    let best = null;
+    for (const a of lg.alts){
+      if (String(a.rid).startsWith("MRT")){
+        const board = t + a.walk_before_s*1000 + headway(a)/2*1000;
+        const cand = {a, board, arr: board + rideP(a, new Date(board), 0.75)*1000, wait: headway(a)/2, live:false};
+        if (!best || cand.arr < best.arr) best = cand; continue;
+      }
+      const reach = t + a.walk_before_s*1000;
+      let wait, live = false;
+      const le = liveEta(a, new Date(reach));
+      if (le === -1) continue;                 // not running now
+      if (le != null){ wait = le; live = true; }
+      else wait = typicalWait(a, new Date(reach));
+      const board = reach + wait*1000;
+      const cand = {a, board, arr: board + rideP(a, new Date(board), 0.75)*1000, wait, live, reach};
+      if (!best || cand.arr < best.arr) best = cand;
+    }
+    if (!best){ t = Infinity; return; }
+    if (n === 0){ leave = new Date(best.board - best.a.walk_before_s*1000); firstWait = best.wait; }
+    if (n === 1 && best.live && pick[0]){ // chance the first ride is fast enough for this bus
+      const prev = pick[0]; const slack = (best.board - prev.board)/1000 - best.a.walk_before_s;
+      pTransfer = rideCdf(prev.a, new Date(prev.board), slack);
+    }
+    usedLive = usedLive || best.live; pick.push(best); t = best.arr;
+  });
+  if (!isFinite(t)) return null;
+  const arrive = new Date(t + o.walk_after_s*1000);
+  return {o, arrive, leave: leave < now ? now : leave, firstWait, total:(arrive-now)/1000, live:usedLive, pTransfer, pick};
+}
+
+function routeName(rid){ const r = IT.routes[String(rid)]; return r ? r.name : String(rid); }
+function hao(name){ return /幹線|快線|專車|小巴|捷運/.test(name) ? "" : "號"; }
+function planHTML(ev){
+  if (!ev.o.legs.length) return "直接<b>走路</b>";
+  return ev.pick.map((p, n) => {
+    const mrt = String(p.a.rid).startsWith("MRT");
+    const nm = mrt ? "捷運" : routeName(p.a.rid);
+    const to = ev.o.legs[n].to_name;
+    return (n===0 ? "搭" : "→ 轉") + `<b>${esc(nm)}</b>` + hao(nm) + ` → 在 ${esc(to)} 下`;
+  }).join(" ");
+}
+function plainPlan(ev){
+  if (!ev.o.legs.length) return "走路";
+  return ev.pick.map((p,n)=>(n?"轉 ":"搭 ")+(String(p.a.rid).startsWith("MRT")?"捷運":routeName(p.a.rid))+" → "+ev.o.legs[n].to_name+" 下").join(" → ");
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function liveLinks(ev){
+  if (!ev.pick.length) return "";
+  const seen = new Set(); let html = "";
+  for (const p of ev.pick){
+    const r = IT.routes[String(p.a.rid)];
+    if (!r || !r.nid || seen.has(r.nid)) continue; seen.add(r.nid);
+    html += `<a class="btn ghost" href="https://ebus.gov.taipei/Route/StopsOfRoute?routeid=${r.nid}" target="_blank" rel="noopener">${esc(r.name)} 即時</a>`;
+  }
+  return html;
+}
+
+function render(){
+  if (!IT) return;
+  const now = new Date();
+  const t = IT.trips.find(x => x.id === trip) || IT.trips[0];
+  ranked = t.options.map(o => evaluate(o, now)).filter(Boolean).sort((a,b) => a.arrive - b.arrive);
+  const best = ranked[0];
+  $("lead").textContent = t.label + "　最快" + (best && best.live ? "（即時）" : "（依時段統計）");
+  if (!best){ $("plan").textContent = "現在沒有可用的車"; return; }
+  $("plan").innerHTML = planHTML(best);
+  $("sub").textContent = best.o.legs.length
+    ? `走 ${mins(best.pick[0].a.walk_before_s)} 分到「${best.o.legs[0].from_name}」，到站後${best.live?"":"約"}等 ${mins(best.firstWait)} 分；下車後走 ${mins(best.o.walk_after_s)} 分`
+    : `全程走路 ${mins(best.o.walk_after_s)} 分`;
+  const leaveIn = (best.leave - now)/60000;
+  $("s1l").textContent = best.o.legs.length ? "出門" : "出發";
+  $("s1").textContent = leaveIn < 1 ? "現在" : hm(best.leave);
+  $("s1").className = leaveIn < 3 ? "soon" : "";
+  $("s2").textContent = hm(best.arrive);
+  $("s3").textContent = mins(best.total) + " 分";
+  const firstWalk = best.o.legs.length ? best.pick[0].a.walk_before_s : 0;
+  let pt = best.pTransfer != null ? `<span class="pill ${best.pTransfer>=0.8?"ok":best.pTransfer>=0.5?"soon":"warn"}">轉乘成功 ${Math.round(best.pTransfer*100)}%</span>` : "";
+  $("heroActs").innerHTML = (CAN_TAP ? `<button class="btn primary" type="button" data-take="0">我搭這個</button>` : "") + liveLinks(best) + pt;
+
+  const rowHTML = (ev, i) => {
+    const d = Math.round((ev.arrive - best.arrive)/60000);
+    const pt = ev.pTransfer != null ? ` · 轉乘成功 ${Math.round(ev.pTransfer*100)}%` : "";
+    const walk = ev.o.legs.length ? `走 ${mins(ev.pick[0].a.walk_before_s)} 分到站 · 等約 ${mins(ev.firstWait)} 分` : `走 ${mins(ev.o.walk_after_s)} 分`;
+    return `<div class="row"><div class="sum">${esc(plainPlan(ev))}</div>
+      <div class="t">${hm(ev.arrive)}<small>${d<=0?"一樣快":"晚 "+d+" 分"}</small></div>
+      <div class="meta">${walk}${ev.o.legs.length?" · 最後走 "+mins(ev.o.walk_after_s)+" 分":""}${pt}</div>
+      <div class="acts">${CAN_TAP ? `<button class="btn" type="button" data-take="${i}">我搭這個</button>` : ""}${liveLinks(ev).replace(/btn ghost/g,"btn")}</div></div>`;
+  };
+  $("list").innerHTML = ranked.slice(1,3).map((ev,i)=>rowHTML(ev,i+1)).join("");
+  $("rest").innerHTML = ranked.slice(3).map((ev,i)=>rowHTML(ev,i+3)).join("") || `<div class="meta">沒有其他路線</div>`;
+
+  const hist = H.n_rides ? `歷史 ${H.n_rides} 趟實測（${(H.generated||"").slice(5,10)} 更新）` : "還沒有實測紀錄：車程用路網估計、等車用班距";
+  const live = LIVE ? `即時資料 ${hm(LIVE.at)}（下載＋解壓 ${LIVE.ms} ms）`
+                    : (CAN_TAP ? "這個頁面拿不到即時到站（claude.ai 不允許連外）" : "即時到站暫時抓不到")
+                      + "：排序用平日同時段的實測等車與車程；按「即時」看官方到站";
+  $("foot").innerHTML = `<div>${live}</div><div>${hist}</div><div>路線資料 ${(IT.generated||"").slice(0,10)}；站牌或走路分鐘有錯，跟顧問說一句就改</div>`;
+}
+
+function renderTrips(){
+  const el = $("trips"); el.innerHTML = "";
+  for (const t of IT.trips){
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = t.label; b.id = "trip-" + t.id;
+    if (t.priority > 1) b.className = "extra";
+    b.setAttribute("aria-pressed", String(t.id === trip));
+    b.onclick = () => { trip = t.id; store.set("trip", trip); store.set("tripAt", String(Date.now())); renderTrips(); render(); };
+    el.appendChild(b);
+  }
+}
+
+// ---- one-tap outcome log (db capability, owner only)
+let dbp = null;
+async function take(i){
+  const ev = ranked[i]; if (!ev) return;
+  const row = {tapped_at: localIso(new Date()), trip, option: ev.o.id, rank: i+1, predicted_arrival: localIso(ev.arrive),
+               plan: plainPlan(ev), mode: ev.live ? "live" : "stats"};
+  try{
+    dbp = dbp || (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null));
+    const db = await dbp;
+    if (!db) throw new Error("no db");
+    await db.collection("taken").add(row);
+    toast(`記下了：預計 ${hm(ev.arrive)} 到`);
+  }catch(e){ toast("沒記到（這個檢視不能寫入），之後會從車輛紀錄推斷"); }
+}
+function localIso(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${hm(d)}:${pad(d.getSeconds())}`; }
+let tt = null;
+function toast(msg){ const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(tt); tt = setTimeout(()=>el.hidden = true, 3000); }
+document.addEventListener("click", e => { const b = e.target.closest("[data-take]"); if (b) take(+b.dataset.take); });
+
+// ---- data: from the URL fragment (#d=<deflate-raw, base64url>; hosted page, never sent to the server)
+// or from itineraries.json / history.json next to the page (claude.ai artifact)
+async function fromFragment(){
+  const m = location.hash.match(/^#d=([A-Za-z0-9_-]+)/);
+  if (!m) return null;
+  const b64 = m[1].replace(/-/g,"+").replace(/_/g,"/");
+  const bin = Uint8Array.from(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
+  const j = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).json();
+  const routes = {}; for (const [rid, v] of Object.entries(j.r)) routes[rid] = {name:v[0], nid:v[1]};
+  const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs]) => ({
+    id: oid, walk_after_s: wa, legs: legs.map(([fn, tn, alts]) => ({from_name: fn, to_name: tn,
+      alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s]) => ({rid, from, to, ride_s, walk_before_s, headway_s}))}))}))}));
+  return [{generated: j.g, routes, trips}, j.h || null];
+}
+async function boot(){
+  trip = defaultTrip();
+  const [data] = await Promise.all([
+    fromFragment().then(d => d || Promise.all([
+      fetch("itineraries.json").then(r => r.json()),
+      fetch("history.json").then(r => r.ok ? r.json() : null).catch(() => null)])),
+    loadLive()
+  ]);
+  IT = data[0]; if (data[1]) H = Object.assign(H, data[1]);
+  renderTrips(); render();
+  setInterval(async () => { if (!document.hidden){ await loadLive(); render(); } }, 30000);
+  // home-screen app resumed from the background: refresh at once instead of showing a stale answer
+  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ await loadLive(); render(); } });
+}
+boot().catch(e => { $("plan").textContent = "路線資料載入失敗，重新整理試試"; });
+})();
+</script>
+
+</body>
+</html>
