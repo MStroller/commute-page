@@ -40,6 +40,12 @@ main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 .trips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
 .trips button.extra{grid-column:1/-1;min-height:40px;font-size:14px;font-weight:500}
 .trips button:focus-visible,.row button:focus-visible,.hero button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+.here{display:flex;flex-wrap:wrap;gap:6px}
+.here button{font:inherit;font-size:15px;font-weight:600;min-height:40px;border-radius:999px;border:1.5px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer;padding:6px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.here button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.here button.loc{font-weight:500;color:var(--muted);border-style:dashed}
+.here button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
 .hero{background:var(--board);color:var(--board-ink);border-radius:16px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px}
 .hero .lead{font-size:13px;letter-spacing:.08em;color:var(--board-dim)}
 .hero .plan{font-size:22px;font-weight:700;line-height:1.35;text-wrap:balance}
@@ -75,6 +81,7 @@ main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 <body>
 <main>
   <div class="trips" id="trips" role="group" aria-label="選路線"></div>
+  <div class="here" id="here" role="group" aria-label="我現在在哪"></div>
   <section class="hero" id="hero" aria-live="polite">
     <div class="lead" id="lead">計算中…</div>
     <div class="plan" id="plan">載入路線資料</div>
@@ -97,6 +104,8 @@ main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 const LIVE_URL = "https://tcgbusfs.blob.core.windows.net/blobbus/GetEstimateTime.gz";
 const $ = id => document.getElementById(id);
 let IT = null, H = {ride:{}, wait:{}, n_rides:0}, LIVE = null, liveErr = null, trip = null, ranked = [];
+let here = null, autoHere = null;   // boarding stop I'm standing at (null = the trip's starting point)
+const HERE_TTL = 40*60*1000, NEAR_M = 150;
 const DECILES = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9];
 const CAN_TAP = !!(window.claude && window.claude.use);   // one-tap log only inside claude.ai (artifact db)
 
@@ -111,6 +120,85 @@ function defaultTrip(){
   const saved = store.get("trip"), at = +store.get("tripAt")||0;
   if (saved && Date.now()-at < 20*60*1000) return saved;
   return new Date().getHours() < 12 ? "1" : "2";
+}
+
+// ---- "I'm at this stop": rank only what boards here, from now, with no walk to the stop
+function tripObj(){ return IT.trips.find(x => x.id === trip) || IT.trips[0]; }
+function boardStops(t){ // every distinct boarding stop of the trip (first legs, then transfer stops), in order seen
+  const out = [];
+  for (let n = 0; n < 4; n++) for (const o of t.options) { const lg = o.legs[n]; if (lg && !out.includes(lg.from_name)) out.push(lg.from_name); }
+  return out;
+}
+function savedHere(){ // a tap is remembered for 40 minutes; "" = I tapped the starting point
+  const at = +store.get("hereAt")||0, v = store.get("here");
+  return v != null && Date.now()-at < HERE_TTL ? v : null;
+}
+function currentHere(t){
+  const v = savedHere(), stops = boardStops(t);
+  if (v != null) return v && stops.includes(v) ? v : null;
+  return autoHere && stops.includes(autoHere) ? autoHere : null;
+}
+function fromHere(options, x){ // legs from the first boarding at x; options that never board at x are dropped
+  const byPath = new Map();
+  for (const o of options){
+    const n = o.legs.findIndex(lg => lg.from_name === x);
+    if (n < 0) continue;
+    const legs = o.legs.slice(n).map((lg, k) => k ? lg : {...lg, walk_before_s: 0, alts: lg.alts.map(a => ({...a, walk_before_s: 0}))});
+    const key = legs.map(lg => lg.from_name + ">" + lg.to_name + (lg.alts.some(a => String(a.rid).startsWith("MRT")) ? "#M" : "")).join("|");
+    const prev = byPath.get(key);
+    if (!prev){ byPath.set(key, {id: o.id, walk_after_s: o.walk_after_s, legs}); continue; }
+    prev.walk_after_s = Math.min(prev.walk_after_s, o.walk_after_s);   // same remaining path: merge its buses
+    prev.legs = prev.legs.map((lg, k) => {
+      const seen = new Set(lg.alts.map(a => a.rid+"|"+a.from+"|"+a.to));
+      return {...lg, alts: lg.alts.concat(legs[k].alts.filter(a => !seen.has(a.rid+"|"+a.from+"|"+a.to)))};
+    });
+  }
+  // one row per bus that stops here (each with its onward plan), so the list answers "which bus do I board"
+  return [...byPath.values()].flatMap(o => o.legs[0].alts.map(a => ({...o, legs: [{...o.legs[0], alts: [a]}, ...o.legs.slice(1)]})));
+}
+function renderHere(){
+  const el = $("here"), t = tripObj(); el.innerHTML = "";
+  here = currentHere(t);
+  const mk = (label, val, cls) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = label; if (cls) b.className = cls;
+    if (val !== undefined){
+      b.setAttribute("aria-pressed", String((val || null) === here));
+      b.onclick = () => { store.set("here", val); store.set("hereAt", String(Date.now())); renderHere(); render(); };
+    }
+    el.appendChild(b); return b;
+  };
+  mk("我在：出發地", "");
+  for (const name of boardStops(t)) mk(name, name);
+  if (IT.stops && navigator.geolocation && geoState !== "granted" && geoState !== "denied")
+    mk("用定位找站", undefined, "loc").onclick = () => locate(true);
+}
+let geoState = null;
+function nearestStop(lat, lon){
+  let best = null;
+  for (const name of boardStops(tripObj())){
+    const p = IT.stops && IT.stops[name]; if (!p) continue;
+    const dy = (lat-p[0])*111000, dx = (lon-p[1])*111000*Math.cos(lat*Math.PI/180), d = Math.hypot(dx, dy);
+    if (!best || d < best.d) best = {name, d};
+  }
+  return best && best.d <= NEAR_M ? best : null;
+}
+function locate(asked){ // optional: preselect the nearest boarding stop within 150 m; a tap always works without it
+  if (!IT.stops || !navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    geoState = "granted";
+    const n = nearestStop(pos.coords.latitude, pos.coords.longitude);
+    autoHere = n ? n.name : null;
+    if (asked){ store.set("here", n ? n.name : ""); store.set("hereAt", String(Date.now())); }
+    if (asked) toast(n ? `最近的站：${n.name}（${Math.round(n.d)} 公尺）` : "附近 150 公尺內沒有這段路線的站，用出發地算");
+    renderHere(); render();
+  }, () => { if (asked){ geoState = "denied"; toast("拿不到定位，直接點你在的站"); renderHere(); } },
+  {maximumAge: 60000, timeout: 8000, enableHighAccuracy: true});
+}
+async function autoLocate(){ // only when already allowed (never prompts on open) and no recent tap
+  if (!IT.stops || !navigator.geolocation || savedHere() != null) return;
+  try{ const p = await navigator.permissions.query({name:"geolocation"}); geoState = p.state; }catch(e){ geoState = null; }
+  if (geoState === "granted") locate(false);
 }
 
 // ---- statistics helpers
@@ -193,6 +281,7 @@ function evaluate(o, now){
 }
 
 function routeName(rid){ const r = IT.routes[String(rid)]; return r ? r.name : String(rid); }
+function routeLabel(a){ const nm = String(a.rid).startsWith("MRT") ? "捷運" : routeName(a.rid); return nm + hao(nm); }
 function hao(name){ return /幹線|快線|專車|小巴|捷運/.test(name) ? "" : "號"; }
 function planHTML(ev){
   if (!ev.o.legs.length) return "直接<b>走路</b>";
@@ -222,19 +311,23 @@ function liveLinks(ev){
 function render(){
   if (!IT) return;
   const now = new Date();
-  const t = IT.trips.find(x => x.id === trip) || IT.trips[0];
-  ranked = t.options.map(o => evaluate(o, now)).filter(Boolean).sort((a,b) => a.arrive - b.arrive);
+  const t = tripObj();
+  here = currentHere(t);
+  const opts = here ? fromHere(t.options, here) : t.options;
+  ranked = opts.map(o => evaluate(o, now)).filter(Boolean).sort((a,b) => a.arrive - b.arrive);
   const best = ranked[0];
-  $("lead").textContent = t.label + "　最快" + (best && best.live ? "（即時）" : "（依時段統計）");
-  if (!best){ $("plan").textContent = "現在沒有可用的車"; return; }
-  $("plan").innerHTML = planHTML(best);
-  $("sub").textContent = best.o.legs.length
-    ? `走 ${mins(best.pick[0].a.walk_before_s)} 分到「${best.o.legs[0].from_name}」，到站後${best.live?"":"約"}等 ${mins(best.firstWait)} 分；下車後走 ${mins(best.o.walk_after_s)} 分`
-    : `全程走路 ${mins(best.o.walk_after_s)} 分`;
+  $("lead").textContent = t.label + (here ? `　在「${here}」上車` : "") + "　最快" + (best && best.live ? "（即時）" : "（依時段統計）");
+  if (!best){ $("plan").textContent = here ? "這站現在沒有可用的車" : "現在沒有可用的車";
+    $("sub").textContent = ""; ["s1","s2","s3"].forEach(k => $(k).textContent = "—"); $("heroActs").innerHTML = ""; $("list").innerHTML = ""; $("rest").innerHTML = ""; return; }
+  $("plan").innerHTML = (here ? "在這站" : "") + planHTML(best);
+  const w = `${best.live?"":"約"} ${mins(best.firstWait)} 分`;
+  $("sub").textContent = !best.o.legs.length ? `全程走路 ${mins(best.o.walk_after_s)} 分`
+    : here ? `${routeLabel(best.pick[0].a)}${w}後到站（${hm(new Date(best.pick[0].board))}），${hm(best.arrive)} 到；下車後走 ${mins(best.o.walk_after_s)} 分`
+    : `走 ${mins(best.pick[0].a.walk_before_s)} 分到「${best.o.legs[0].from_name}」，到站後${best.live?"":"約"}等 ${mins(best.firstWait)} 分；下車後走 ${mins(best.o.walk_after_s)} 分`;
   const leaveIn = (best.leave - now)/60000;
-  $("s1l").textContent = best.o.legs.length ? "出門" : "出發";
-  $("s1").textContent = leaveIn < 1 ? "現在" : hm(best.leave);
-  $("s1").className = leaveIn < 3 ? "soon" : "";
+  $("s1l").textContent = here ? "車來" : best.o.legs.length ? "出門" : "出發";
+  $("s1").textContent = here ? (best.firstWait < 60 ? "進站" : mins(best.firstWait) + " 分") : leaveIn < 1 ? "現在" : hm(best.leave);
+  $("s1").className = (here ? best.firstWait < 180 : leaveIn < 3) ? "soon" : "";
   $("s2").textContent = hm(best.arrive);
   $("s3").textContent = mins(best.total) + " 分";
   const firstWalk = best.o.legs.length ? best.pick[0].a.walk_before_s : 0;
@@ -244,7 +337,9 @@ function render(){
   const rowHTML = (ev, i) => {
     const d = Math.round((ev.arrive - best.arrive)/60000);
     const pt = ev.pTransfer != null ? ` · 轉乘成功 ${Math.round(ev.pTransfer*100)}%` : "";
-    const walk = ev.o.legs.length ? `走 ${mins(ev.pick[0].a.walk_before_s)} 分到站 · 等約 ${mins(ev.firstWait)} 分` : `走 ${mins(ev.o.walk_after_s)} 分`;
+    const walk = !ev.o.legs.length ? `走 ${mins(ev.o.walk_after_s)} 分`
+      : here ? `${routeLabel(ev.pick[0].a)}${ev.live?"":"約"} ${mins(ev.firstWait)} 分後到站`
+      : `走 ${mins(ev.pick[0].a.walk_before_s)} 分到站 · 等約 ${mins(ev.firstWait)} 分`;
     return `<div class="row"><div class="sum">${esc(plainPlan(ev))}</div>
       <div class="t">${hm(ev.arrive)}<small>${d<=0?"一樣快":"晚 "+d+" 分"}</small></div>
       <div class="meta">${walk}${ev.o.legs.length?" · 最後走 "+mins(ev.o.walk_after_s)+" 分":""}${pt}</div>
@@ -267,7 +362,7 @@ function renderTrips(){
     b.type = "button"; b.textContent = t.label; b.id = "trip-" + t.id;
     if (t.priority > 1) b.className = "extra";
     b.setAttribute("aria-pressed", String(t.id === trip));
-    b.onclick = () => { trip = t.id; store.set("trip", trip); store.set("tripAt", String(Date.now())); renderTrips(); render(); };
+    b.onclick = () => { trip = t.id; store.set("trip", trip); store.set("tripAt", String(Date.now())); renderTrips(); renderHere(); render(); };
     el.appendChild(b);
   }
 }
@@ -277,7 +372,7 @@ let dbp = null;
 async function take(i){
   const ev = ranked[i]; if (!ev) return;
   const row = {tapped_at: localIso(new Date()), trip, option: ev.o.id, rank: i+1, predicted_arrival: localIso(ev.arrive),
-               plan: plainPlan(ev), mode: ev.live ? "live" : "stats"};
+               plan: plainPlan(ev), mode: ev.live ? "live" : "stats", at: here || ""};
   try{
     dbp = dbp || (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null));
     const db = await dbp;
@@ -303,7 +398,7 @@ async function fromFragment(){
   const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs]) => ({
     id: oid, walk_after_s: wa, legs: legs.map(([fn, tn, alts]) => ({from_name: fn, to_name: tn,
       alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s]) => ({rid, from, to, ride_s, walk_before_s, headway_s}))}))}))}));
-  return [{generated: j.g, routes, trips}, j.h || null];
+  return [{generated: j.g, routes, trips, stops: j.s || null}, j.h || null];
 }
 async function boot(){
   trip = defaultTrip();
@@ -314,10 +409,10 @@ async function boot(){
     loadLive()
   ]);
   IT = data[0]; if (data[1]) H = Object.assign(H, data[1]);
-  renderTrips(); render();
+  renderTrips(); renderHere(); render(); autoLocate();
   setInterval(async () => { if (!document.hidden){ await loadLive(); render(); } }, 30000);
   // home-screen app resumed from the background: refresh at once instead of showing a stale answer
-  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ await loadLive(); render(); } });
+  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ autoLocate(); await loadLive(); renderHere(); render(); } });
 }
 boot().catch(e => { $("plan").textContent = "路線資料載入失敗，重新整理試試"; });
 })();
