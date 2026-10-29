@@ -12,566 +12,853 @@
 <title>哪班車最快</title>
 
 <style>
-/* One question per screen: when do I leave, when do I arrive. Hierarchy by size 40/20/15/13; system font only. */
+/* 共用設計規範（docs/UI規範.md 三）：顏色、字級、間距、元件尺寸只能用這裡的值。
+   tools/ui_lint.py 會檢查頁面：font-size／顏色／間距不能寫死數值，只能用 var(--…)。
+   字級：iOS 人機介面指南層級 34／28／22／17／15／13／12（最小 12）。間距：4 的倍數。
+   顏色只表示意義：路線色（官方色票）、延誤；其他一律灰階。 */
 :root{
-  --bg:#f3f5f6; --panel:#ffffff; --ink:#141a1f; --muted:#5a6670; --line:#dde3e7;
-  --accent:#0b6e7a; --accent-ink:#ffffff; --soon:#a35200; --late:#b3261e; --ok:#1d7a46; --stat:#8a959d;
-  --chip:#eef1f3;
-  --text:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Heiti TC","Microsoft JhengHei",system-ui,sans-serif;
+  /* type ladder */
+  --fs-34:34px; --fs-28:28px; --fs-22:22px; --fs-17:17px; --fs-15:15px; --fs-13:13px; --fs-12:12px;
+  --lh-tight:1.15; --lh:1.35;
+  --fw-regular:400; --fw-bold:700;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Heiti TC","Microsoft JhengHei",system-ui,sans-serif;
+
+  /* spacing (4-pt grid) */
+  --s0:0; --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px; --s10:40px; --s12:48px;
+
+  /* components */
+  --tap:44px;            /* minimum touch target */
+  --r-chip:4px; --r-btn:8px; --r-card:12px;
+  --bw:1px; --bw-strong:2px; --rail:6px;
+  --chip-h:24px; --chip-min:36px; --dot:14px;
+  --tl-time:52px; --tl-rail:20px;
+
+  /* greys (light) */
+  --bg:#ffffff; --surface:#ffffff; --fill:#ececec; --fill-2:#f4f4f4;
+  --ink:#111111; --ink-2:#555555; --ink-3:#767676;
+  --line:#d4d4d4; --line-strong:#111111;
+  --pri:#222222; --on-pri:#ffffff;
+  --skeleton:#e6e6e6;
+  --warn:#b3261e; --on-warn:#ffffff;            /* delay / missed: always with text + a shape */
+
+  /* official route colours (Taipei Metro line colours; Taipei City bus colour families follow them) */
+  --mrt-br:#c48c31;   /* 文湖線 Brown */
+  --mrt-r:#e3002c;    /* 淡水信義線 Red */
+  --mrt-g:#008659;    /* 松山新店線 Green */
+  --mrt-o:#f8b61c;    /* 中和新蘆線 Orange */
+  --mrt-bl:#0070bd;   /* 板南線 Blue */
+  --mrt-y:#ffdb00;    /* 環狀線 Yellow */
+  --bus:#333333;      /* plain numbered bus: no official colour → neutral */
+  --on-route:#ffffff; --on-route-light:#111111;  /* text on dark / light route colours (contrast ≥ 4.5:1) */
   color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0d1114; --panel:#171d21; --ink:#e8edf0; --muted:#9aa7b0; --line:#2a333a;
-  --accent:#4cc0cc; --accent-ink:#04282c; --soon:#ffb454; --late:#ff8a80; --ok:#6fd39a; --stat:#6f7b83;
-  --chip:#222a30; color-scheme:dark}}
+  --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --fill-2:#1c1c1e;
+  --ink:#f2f2f2; --ink-2:#b0b0b0; --ink-3:#8e8e93;
+  --line:#3a3a3c; --line-strong:#f2f2f2;
+  --pri:#f2f2f2; --on-pri:#111111;
+  --skeleton:#2c2c2e;
+  --warn:#ff6b60; --on-warn:#111111;
+  --bus:#5a5a5e;
+  color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0d1114; --panel:#171d21; --ink:#e8edf0; --muted:#9aa7b0; --line:#2a333a;
-  --accent:#4cc0cc; --accent-ink:#04282c; --soon:#ffb454; --late:#ff8a80; --ok:#6fd39a; --stat:#6f7b83;
-  --chip:#222a30; color-scheme:dark}
+  --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --fill-2:#1c1c1e;
+  --ink:#f2f2f2; --ink-2:#b0b0b0; --ink-3:#8e8e93;
+  --line:#3a3a3c; --line-strong:#f2f2f2;
+  --pri:#f2f2f2; --on-pri:#111111;
+  --skeleton:#2c2c2e;
+  --warn:#ff6b60; --on-warn:#111111;
+  --bus:#5a5a5e;
+  color-scheme:dark}
+</style>
+<style>
+/* Commute page (docs/ui/commute/states.md, wireframe-1). Every value comes from docs/ui/tokens.css (tools/ui_lint.py). */
 *{box-sizing:border-box}
-html,body{background:var(--bg);color:var(--ink);margin:0}
-body{font-family:var(--text);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
-  padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));overflow-x:hidden}
-main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
-button{font:inherit;color:inherit}
-button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--chip);border-radius:12px;padding:3px;gap:3px}
-.seg button{min-height:40px;border:0;border-radius:9px;background:transparent;font-size:15px;font-weight:600;cursor:pointer;padding:4px 2px;white-space:nowrap}
-.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 3px #0002}
-.seg button.extra{grid-column:1/-1;min-height:32px;font-size:13px;font-weight:500;color:var(--muted)}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
-.ctx{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;align-items:center;min-height:20px}
-.ctx button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;min-height:30px;white-space:nowrap}
-.big{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px}
-.big .when{font-size:40px;font-weight:700;letter-spacing:-.01em;line-height:1.1}
-.big .when small{font-size:20px;font-weight:600;margin-left:6px}
-.big .cd{font-size:20px;font-weight:700;white-space:nowrap}
-.cd.soon{color:var(--soon)} .cd.late{color:var(--late)}
-.arr{font-size:20px;font-weight:600;margin-top:2px}
-.arr span{color:var(--muted);font-weight:500}
-.badges{display:flex;flex-wrap:wrap;align-items:center;gap:4px 4px;margin-top:12px}
-.b{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:26px;padding:0 7px;border-radius:6px;color:#fff;font-weight:700;font-size:14px;white-space:nowrap;background:#1f5fae}
-.b.mrt{border-radius:13px}
-.w{display:inline-flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);white-space:nowrap}
-.w svg{width:12px;height:14px;fill:currentColor}
-.sep{color:var(--stat);font-size:11px}
-.live{font-size:14px;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
-.dot.stat{background:var(--stat)}
-.note{font-size:13px;color:var(--muted);margin-top:4px}
-.warn{color:var(--soon)}
-.miss{margin-top:12px;width:100%;min-height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--chip);font-size:15px;font-weight:600;cursor:pointer}
-.missed{font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:center}
-.missed button{border:0;background:transparent;color:var(--accent);font-size:13px;cursor:pointer;min-height:30px}
-h2{font-size:13px;font-weight:600;color:var(--muted);margin:2px 2px 0}
-.rows{display:flex;flex-direction:column;gap:6px}
-.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;min-height:52px;width:100%;text-align:left;cursor:pointer}
-.row .l{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
-.row .l .badges{margin:0}
-.row .sub{font-size:13px;color:var(--muted)}
-.row .r{text-align:right;white-space:nowrap}
-.row .r b{font-size:20px;font-weight:700;display:block;line-height:1.1}
-.row .r small{font-size:13px;color:var(--muted)}
-.row .cdn{font-size:24px;font-weight:700;min-width:58px}
-.row .cdn small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
-.tag{font-size:12px;font-weight:700;color:var(--ok)}
-details.all>summary{cursor:pointer;color:var(--muted);font-size:14px;padding:6px 2px;list-style:none}
-details.all>summary::-webkit-details-marker{display:none}
-.tl{list-style:none;margin:8px 0 2px;padding:0}
-.tl li{position:relative;padding:0 0 12px 22px;font-size:14px}
-.tl li::before{content:"";position:absolute;left:5px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--panel);border:2px solid var(--muted)}
-.tl li::after{content:"";position:absolute;left:10px;top:17px;bottom:-4px;width:3px;background:var(--line)}
-.tl li:last-child::after{display:none}
-.tl li.ride::after{background:var(--c,#1f5fae)}
-.tl li.ride::before{border-color:var(--c,#1f5fae)}
-.tl time{font-weight:700;margin-right:6px}
-.tl .hint{display:block;font-size:13px;color:var(--muted)}
-.opt{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
-.opt:first-child{border-top:0;margin-top:0;padding-top:0}
-.opt .hd{display:flex;justify-content:space-between;gap:8px;align-items:center}
-.foot{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
-.foot>button{align-self:flex-start;border:0;background:transparent;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;min-height:32px;padding:0}
-.foot .more{display:flex;flex-direction:column;gap:4px}
-.foot .share{align-self:flex-start;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;min-height:36px}
-.stops{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.stops button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 10px;font-size:13px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:34px}
-.stops button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);
-  padding:10px 16px;border-radius:999px;font-size:14px;max-width:calc(100% - 32px)}
+html,body{background:var(--bg);color:var(--ink);margin:var(--s0)}
+body{word-break:keep-all;overflow-wrap:anywhere;font-family:var(--font);font-size:var(--fs-15);line-height:var(--lh);font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;
+  padding:max(var(--s3),env(safe-area-inset-top,0px)) max(var(--s4),env(safe-area-inset-right,0px)) calc(var(--s6) + env(safe-area-inset-bottom,0px)) max(var(--s4),env(safe-area-inset-left,0px));overflow-x:hidden}
+main{max-width:560px;margin:var(--s0) auto}
+button,input{font:inherit;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:var(--bw-strong) solid var(--line-strong);outline-offset:var(--bw-strong)}
+.t34{font-size:var(--fs-34);font-weight:var(--fw-bold);line-height:var(--lh-tight)}
+.t28{font-size:var(--fs-28);font-weight:var(--fw-bold);line-height:var(--lh-tight)}
+.t22{font-size:var(--fs-22);font-weight:var(--fw-bold);line-height:var(--lh-tight)}
+.t17{font-size:var(--fs-17)} .t15{font-size:var(--fs-15)} .t13{font-size:var(--fs-13)} .t12{font-size:var(--fs-12)}
+.b{font-weight:var(--fw-bold)} .g{color:var(--ink-2)}
+.mt1{margin-top:var(--s1)} .mt2{margin-top:var(--s2)} .mt3{margin-top:var(--s3)}
+.row{display:flex;align-items:center;gap:var(--s2);min-width:0}
+.wrap{flex-wrap:wrap}
+.sp{justify-content:space-between}
+.grow{flex:1;min-width:0}
+.right{margin-left:auto;text-align:right;white-space:nowrap}
+.col{display:flex;flex-direction:column;gap:var(--s1)}
+.nw{white-space:nowrap}
+.gap3{column-gap:var(--s3)}
+/* route badge: colour = official line / bus family colour; the text label always says which route */
+.chip{display:inline-flex;align-items:center;justify-content:center;flex:none;min-width:var(--chip-min);height:var(--chip-h);padding:var(--s0) var(--s2);border-radius:var(--r-chip);
+  background:var(--c,var(--bus));color:var(--on-route);font-size:var(--fs-13);font-weight:var(--fw-bold);white-space:nowrap}
+.chip.lt{color:var(--on-route-light)}
+.tag{display:inline-flex;align-items:center;gap:var(--s1);flex:none;padding:var(--s0) var(--s1);border:var(--bw) solid var(--ink-3);border-radius:var(--r-chip);font-size:var(--fs-12);color:var(--ink-2);white-space:nowrap}
+.tag.on{border-color:var(--line-strong);color:var(--ink);font-weight:var(--fw-bold)}
+.tag.warn{border-color:var(--warn);background:var(--warn);color:var(--on-warn);font-weight:var(--fw-bold)}
+.tag.warn::before{content:"";width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:8px solid currentColor}
+.btn{display:inline-flex;align-items:center;justify-content:center;flex:none;min-height:var(--tap);min-width:var(--tap);padding:var(--s0) var(--s4);border-radius:var(--r-btn);border:var(--bw) solid transparent;
+  background:var(--fill);font-size:var(--fs-15);font-weight:var(--fw-bold);color:var(--ink);cursor:pointer;text-decoration:none;white-space:nowrap}
+.btn.pri{background:var(--pri);color:var(--on-pri)}
+.btn.out{background:var(--surface);border-color:var(--ink-3)}
+.btn.wide{flex:1}
+.btn.back{padding:var(--s0) var(--s2);margin-left:calc(-1 * var(--s2));background:transparent;font-weight:var(--fw-regular);font-size:var(--fs-17)}
+.field{display:flex;align-items:center;min-height:var(--tap);padding:var(--s0) var(--s3);border:var(--bw) solid var(--line);border-radius:var(--r-btn);gap:var(--s2);background:var(--surface);cursor:pointer;min-width:0;width:100%}
+.field.focus{border:var(--bw-strong) solid var(--line-strong)}
+.field .lb{flex:none;width:48px;font-size:var(--fs-12);color:var(--ink-2)}
+.field .v{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.field input{flex:1;min-width:0;border:0;background:transparent;font-size:var(--fs-17);padding:var(--s0);outline:none}
+.field{position:relative}
+.field input.ov{position:absolute;inset:0;opacity:0;width:100%}   /* native time picker on tap; the text shows HH:MM (24 h) */
+.field .x{flex:none;min-width:var(--tap);min-height:var(--tap);border:0;background:transparent;color:var(--ink-2);font-size:var(--fs-17);cursor:pointer;margin-right:calc(-1 * var(--s3))}
+.card{display:block;border:var(--bw) solid var(--line);border-radius:var(--r-card);padding:var(--s3);margin-top:var(--s2);background:var(--surface);cursor:pointer}
+.card.sel{border:var(--bw-strong) solid var(--line-strong)}
+.seg{display:flex;border:var(--bw) solid var(--ink-3);border-radius:var(--r-btn);overflow:hidden}
+.seg button{flex:1;min-height:var(--tap);border:0;border-left:var(--bw) solid var(--ink-3);background:var(--surface);font-size:var(--fs-13);cursor:pointer;padding:var(--s0) var(--s1);white-space:nowrap}
+.seg button:first-child{border-left:0}
+.seg button[aria-selected="true"]{background:var(--pri);color:var(--on-pri);font-weight:var(--fw-bold)}
+.lk{color:inherit;text-decoration:underline;text-underline-offset:3px;padding:var(--s3) var(--s0);margin:calc(-1 * var(--s3)) var(--s0);cursor:pointer}
+/* card: head / stats / badges / board line + 出發; when the board line is too long for the width, 出發 moves up to the badge row */
+.card.rc{display:grid;grid-template-columns:1fr auto;column-gap:var(--s2)}
+.card>.full{grid-column:1/-1}
+.card .badges{grid-column:1;grid-row:3;margin-top:var(--s2)}
+.card .what{grid-column:1;grid-row:4;margin-top:var(--s2);align-self:center;display:flex;flex-wrap:wrap;column-gap:var(--s2);row-gap:var(--s0);font-weight:var(--fw-bold);min-width:0}
+.card .go{grid-column:2;grid-row:4;margin-top:var(--s2)}
+.card.up .what{grid-column:1/-1}
+.card.up .go{grid-row:3}
+.list>*{min-height:var(--tap);border-bottom:var(--bw) solid var(--line);display:flex;align-items:center;gap:var(--s2)}
+.list .opt{cursor:pointer}
+.brow{min-height:64px;flex-wrap:wrap;align-content:center;padding:var(--s2) var(--s0);cursor:pointer}
+.brow .cd{flex:none;width:84px;text-align:right}
+.brow .sub{width:100%;padding-left:calc(var(--chip-min) + var(--s2))}
+/* timeline: time | rail | content (norikae style) */
+.tl{margin-top:var(--s3)}
+.st,.sg{display:grid;grid-template-columns:var(--tl-time) var(--tl-rail) 1fr;column-gap:var(--s1)}
+.st{min-height:32px;align-items:center}
+.st .tm{font-size:var(--fs-17);font-weight:var(--fw-bold)}
+.st .dot{width:var(--dot);height:var(--dot);border-radius:50%;border:3px solid var(--line-strong);background:var(--surface);justify-self:center}
+.st .dot.end{background:var(--line-strong)}
+.st .nm{font-size:var(--fs-17);font-weight:var(--fw-bold);display:flex;justify-content:space-between;align-items:center;gap:var(--s2);min-width:0}
+.st .nm .n{min-width:0;overflow-wrap:anywhere}
+.st .nm .r{flex:none;font-size:var(--fs-13);font-weight:var(--fw-regular);color:var(--ink-2)}
+.sg{min-height:52px}
+.sg .rail{justify-self:center;width:var(--rail);background:var(--c,var(--bus))}
+.sg .rail.walk{width:0;background:transparent;border-left:3px dotted var(--ink-3)}
+.sg .ct{padding:var(--s1) var(--s0);font-size:var(--fs-13);color:var(--ink-2);display:flex;flex-direction:column;gap:var(--s0);justify-content:center;min-width:0}
+.sg .ct .hd{font-size:var(--fs-15);font-weight:var(--fw-bold);color:var(--ink)}
+.next{border:var(--bw-strong) solid var(--line-strong);border-radius:var(--r-card);padding:var(--s3);margin-top:var(--s2)}
+.err{display:flex;justify-content:space-between;align-items:center;gap:var(--s2);background:var(--fill-2);border-left:4px solid var(--ink-2);padding:var(--s1) var(--s1) var(--s1) var(--s3);min-height:52px;margin-top:var(--s2);font-size:var(--fs-13)}
+.err .btn{background:var(--surface);border-color:var(--ink-3)}
+.foot{display:flex;gap:var(--s2);margin-top:var(--s3)}
+.sk{background:var(--skeleton);border-radius:var(--r-btn)}
+.sk.f{height:var(--tap);margin-top:var(--s1)} .sk.s{height:var(--tap);margin-top:var(--s2)} .sk.c{height:132px;margin-top:var(--s2);border-radius:var(--r-card)}
+.next .row{flex-wrap:wrap}
+.next .cdn{margin-left:auto}
+.u{display:inline-block;max-width:100%}
+.sep{margin:var(--s0) var(--s1)}
+.vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 </style>
 
 </head>
 <body>
-<main>
-  <div class="seg" id="trips" role="group" aria-label="選路線"></div>
-  <section class="card" id="hero" aria-live="polite"><div class="ctx">載入路線資料…</div></section>
-  <section id="alts"></section>
-  <details class="all" id="all"><summary>▾ 全部方案（時間軸、出口、車資）</summary><div class="card" id="allList"></div></details>
-  <div class="foot" id="foot"></div>
-</main>
-<div class="toast" id="toast" hidden></div>
+<main><div id="app" aria-live="polite"><div class="sk f"></div><div class="sk f"></div><div class="sk f"></div><div class="sk s"></div><div class="sk c"></div><div class="sk c"></div><div class="sk c"></div></div></main>
 
 <script>
 (() => {
-const LIVE_URL = "https://tcgbusfs.blob.core.windows.net/blobbus/GetEstimateTime.gz";
-const $ = id => document.getElementById(id);
-let IT = null, H = {ride:{}, wait:{}, n_rides:0, e:{}}, LIVE = null, trip = null, ranked = [], habitEv = null;
-let autoHere = null, geoState = null;
-const HERE_TTL = 40*60*1000, NEAR_M = 150, MISS_TTL = 15*60*1000, TPASS = 1200;
+"use strict";
+// ===== core:start — pure logic, no DOM (modules/commute/tests/page_core.test.mjs runs this block in node)
+const S = {IT: null, H: {ride: {}, wait: {}, n_rides: 0, e: {}}, LIVE: null, useLive: true, clock: null};
+const nowD = () => S.clock ? new Date(S.clock) : new Date();
+const MIN = 60000, LOCK_TTL = 2 * 3600 * 1000, ARRIVE_GRACE = 5 * MIN, MISS_SLACK = MIN;
 const DECILES = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9];
-const WALK_SVG = '<svg viewBox="0 0 12 14" aria-hidden="true"><circle cx="7" cy="1.8" r="1.6"/><path d="M6.2 4.2 4 5.6 3.4 8.2l1.3.3.4-2 1-.6-.9 4.2L3 13.2l1.2.7 2.4-3 .9-2 1.3 1.5V14h1.4V9.6L8.5 7.6l.4-1.9.6 1.2 2 .8.5-1.2-1.6-.7-1-2.1c-.3-.6-.9-.9-1.5-.8z"/></svg>';
-
-const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}},
-               json(k, d){try{return JSON.parse(localStorage.getItem(k)) || d}catch(e){return d}}, put(k,v){try{localStorage.setItem(k, JSON.stringify(v))}catch(e){}}};
-const pad = n => String(n).padStart(2,"0");
-const hm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
-const mins = s => Math.max(0, Math.round(s/60));
+const pad = n => String(n).padStart(2, "0");
+const hm = t => { const d = new Date(t); return pad(d.getHours()) + ":" + pad(d.getMinutes()); };
+const minsUp = ms => Math.max(0, Math.ceil(ms / MIN - 0.01));
+const minsR = s => Math.max(0, Math.round(s / 60));
 const isMrt = a => String(a.rid).startsWith("MRT");
-function slotKey(d){ return (d.getDay()===0||d.getDay()===6?"we":"wd") + pad(d.getHours()) + pad(Math.floor(d.getMinutes()/15)*15); }
-function period(d){ const h=d.getHours()+d.getMinutes()/60; return h>=6&&h<11?"am":h>=16&&h<21.5?"pm":"other"; }
-function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function defaultTrip(){
-  const saved = store.get("trip"), at = +store.get("tripAt")||0;
-  if (saved && Date.now()-at < 20*60*1000) return saved;
-  const h = new Date().getHours(); return h < 12 ? "1" : "2";
-}
-const tripObj = () => IT.trips.find(x => x.id === trip) || IT.trips[0];
-
-// ---- route badges: bus = route colour family, MRT = official line colour (white text, contrast >= 4.5:1)
-const LINE = {G:["#00805a","松山新店"], B:["#8a5a14","文湖"], O:["#b45309","中和新蘆"], R:["#c0282d","淡水信義"], L:["#0b5ea8","板南"]};
-function routeName(rid){ const r = IT.routes[String(rid)]; return r ? r.name : String(rid); }
-function busColor(name){
-  if (/^紅/.test(name)) return "#c0282d"; if (/^藍/.test(name)) return "#1d5fa8"; if (/^棕/.test(name)) return "#8a5a14";
-  if (/^綠/.test(name)) return "#2e7d32"; if (/^橘/.test(name)) return "#b45309"; if (/^小/.test(name)) return "#6a4c93";
-  if (/幹線/.test(name)) return "#37474f"; if (/通勤|專車/.test(name)) return "#5d4037"; return "#1f5fae";
-}
-function shortName(name){ return name.replace(/^內科通勤專車/,"內科"); }
-function badge(a){
-  if (isMrt(a)){
-    const ls = (a.lines || "").split("").filter(x => LINE[x]);
-    if (!ls.length) return `<span class="b mrt" style="background:#00805a">捷運</span>`;
-    return ls.map(x => `<span class="b mrt" style="background:${LINE[x][0]}">${LINE[x][1]}</span>`).join('<span class="sep">›</span>');
-  }
-  const nm = routeName(a.rid); return `<span class="b" style="background:${busColor(nm)}">${esc(shortName(nm))}</span>`;
-}
-function legColor(a){ if (isMrt(a)){ const l = (a.lines||"G")[0]; return (LINE[l]||LINE.G)[0]; } return busColor(routeName(a.rid)); }
-const walkChip = s => s >= 30 ? `<span class="w">${WALK_SVG}${mins(s)}</span>` : "";
-function badgeRow(ev, compact){ // compact: route badges only (lists); full: with walking minutes (the answer)
-  if (!ev.o.legs.length) return `<div class="badges">${walkChip(ev.o.walk_after_s)}<span class="w">全程走路</span></div>`;
-  const parts = [];
-  ev.pick.forEach((p, n) => { const w = compact ? "" : walkChip(p.walk); if (w) parts.push(w); parts.push(badge(p.a)); });
-  const w = compact ? "" : walkChip(ev.o.walk_after_s); if (w) parts.push(w);
-  return `<div class="badges">${parts.join('<span class="sep">›</span>')}</div>`;
-}
-const routeLabel = a => isMrt(a) ? "捷運" : routeName(a.rid);
-
-// ---- where am I: the at-stop board opens by itself within 150 m when location is already allowed
-function boardStops(t){
-  const out = [];
-  for (let n = 0; n < 4; n++) for (const o of t.options){ const lg = o.legs[n]; if (lg && !out.includes(lg.from_name)) out.push(lg.from_name); }
-  return out;
-}
-function savedHere(){ const at = +store.get("hereAt")||0, v = store.get("here"); return v != null && Date.now()-at < HERE_TTL ? v : null; }
-function currentHere(t){
-  const v = savedHere(), stops = boardStops(t);
-  if (v != null) return v && stops.includes(v) ? v : null;
-  return autoHere && stops.includes(autoHere) ? autoHere : null;
-}
-function setHere(v){ store.set("here", v); store.set("hereAt", String(Date.now())); render(); }
-function fromHere(options, x){ // one row per bus that stops here, each with its onward plan
-  const byPath = new Map();
-  for (const o of options){
-    const n = o.legs.findIndex(lg => lg.from_name === x);
-    if (n < 0) continue;
-    const legs = o.legs.slice(n).map((lg, k) => k ? lg : {...lg, alts: lg.alts.map(a => ({...a, walk_before_s: 0}))});
-    const key = legs.map(lg => lg.from_name + ">" + lg.to_name + (lg.alts.some(isMrt) ? "#M" : "")).join("|");
-    const prev = byPath.get(key);
-    if (!prev){ byPath.set(key, {...o, legs}); continue; }
-    prev.walk_after_s = Math.min(prev.walk_after_s, o.walk_after_s);
-    prev.legs = prev.legs.map((lg, k) => {
-      const seen = new Set(lg.alts.map(a => a.rid+"|"+a.from+"|"+a.to));
-      return {...lg, alts: lg.alts.concat(legs[k].alts.filter(a => !seen.has(a.rid+"|"+a.from+"|"+a.to)))};
-    });
-  }
-  return [...byPath.values()].flatMap(o => o.legs[0].alts.map(a => ({...o, legs: [{...o.legs[0], alts: [a]}, ...o.legs.slice(1)]})));
-}
-function nearestStop(lat, lon){
-  let best = null;
-  for (const name of boardStops(tripObj())){
-    const p = IT.stops && IT.stops[name]; if (!p) continue;
-    const dy = (lat-p[0])*111000, dx = (lon-p[1])*111000*Math.cos(lat*Math.PI/180), d = Math.hypot(dx, dy);
-    if (!best || d < best.d) best = {name, d};
-  }
-  return best && best.d <= NEAR_M ? best : null;
-}
-function locate(asked){
-  if (!IT.stops || !navigator.geolocation) return;
-  navigator.geolocation.getCurrentPosition(pos => {
-    geoState = "granted";
-    const n = nearestStop(pos.coords.latitude, pos.coords.longitude);
-    autoHere = n ? n.name : null;
-    if (asked){ store.set("here", n ? n.name : ""); store.set("hereAt", String(Date.now()));
-      toast(n ? `最近的站：${n.name}（${Math.round(n.d)} 公尺）` : "150 公尺內沒有這段路線的站，用出發地算"); }
-    render();
-  }, () => { if (asked){ geoState = "denied"; toast("拿不到定位，直接點你在的站"); render(); } },
-  {maximumAge: 60000, timeout: 8000, enableHighAccuracy: true});
-}
-async function autoLocate(){ // never prompts: only when location is already allowed and I did not just tap a stop
-  if (!IT.stops || !navigator.geolocation || savedHere() != null) return;
-  try{ const p = await navigator.permissions.query({name:"geolocation"}); geoState = p.state; }catch(e){ geoState = null; }
-  if (geoState === "granted") locate(false);
+const akey = a => a.rid + "|" + a.from;
+function slotKey(d){ return (d.getDay() === 0 || d.getDay() === 6 ? "we" : "wd") + pad(d.getHours()) + pad(Math.floor(d.getMinutes()/15)*15); }
+function period(d){ const h = d.getHours() + d.getMinutes()/60; return h >= 6 && h < 11 ? "am" : h >= 16 && h < 21.5 ? "pm" : "other"; }
+function atClock(hhmm, base){ // "0905" / "09:05" / "09:05:30" today (base date) -> ms
+  const s = String(hhmm).replace(/:/g, ""), d = new Date(base);
+  d.setHours(+s.slice(0,2), +s.slice(2,4), +(s.slice(4,6) || 0), 0); return +d;
 }
 
-// ---- statistics
-function rideP(alt, d){ // seconds at p75 from history, else static x1.15
-  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to], dec = h && (h[period(d)] || h.all);
-  return dec && dec.length === 10 ? dec[7] : alt.ride_s * 1.15;
-}
-function rideCdf(alt, d, x){
-  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to], dec = h && (h[period(d)] || h.all);
+// statistics
+function rideP(a, d){ const h = S.H.ride[a.rid+"|"+a.from+"|"+a.to], dec = h && (h[period(d)] || h.all);
+  return dec && dec.length === 10 ? dec[7] : a.ride_s * 1.15; }
+function rideCdf(a, d, x){
+  const h = S.H.ride[a.rid+"|"+a.from+"|"+a.to], dec = h && (h[period(d)] || h.all);
   if (!dec) return null;
   if (x < dec[0]) return 0.05; if (x >= dec[9]) return 0.95;
-  for (let i=0;i<9;i++) if (x < dec[i+1]) return DECILES[i] + (DECILES[i+1]-DECILES[i])*(x-dec[i])/Math.max(1,dec[i+1]-dec[i]);
+  for (let i = 0; i < 9; i++) if (x < dec[i+1]) return DECILES[i] + (DECILES[i+1]-DECILES[i])*(x-dec[i])/Math.max(1, dec[i+1]-dec[i]);
   return 0.95;
 }
-function typicalWait(alt, d){ const w = H.wait[alt.rid+"|"+alt.from], s = w && w[slotKey(d)]; return s && s[2] >= 3 ? s[0] : headway(alt)/2; }
-const headway = alt => alt.headway_s || 900;
-// Official ETAs run late on my stops (measured: median actual - predicted per bucket). Expected arrival uses the
-// median; "be at the stop by" uses p10, so I catch the bus about 9 times in 10.
+const headway = a => a.headway_s || 900;
+function typicalWait(a, d){ const w = S.H.wait[akey(a)], s = w && w[slotKey(d)]; return s && s[2] >= 3 ? s[0] : headway(a)/2; }
+// official ETAs on my stops run late: expected time uses the measured median, "be there by" its p10
 function etaFix(eta){
-  const b = eta < 180 ? "0-3" : eta < 360 ? "3-6" : eta < 600 ? "6-10" : "10-30", e = H.e && H.e[b];
-  if (!e || eta > 1800) return {bias:0, early:0};
-  return {bias: Math.min(0, e[0]), early: Math.min(0, e[1])};
+  const b = eta < 180 ? "0-3" : eta < 360 ? "3-6" : eta < 600 ? "6-10" : "10-30", e = S.H.e && S.H.e[b];
+  if (!e || eta > 1800) return {bias: 0, early: 0, sd: 60};
+  return {bias: Math.min(0, e[0]), early: Math.min(0, e[1]), sd: Math.max(30, (e[0] - e[1]) / 1.2816)};
 }
-
-// ---- live ETA (city open data, CORS *, no key)
-async function loadLive(){
-  const t0 = performance.now();
-  try{
-    const r = await fetch(LIVE_URL, {cache:"no-store"});
-    if (!r.ok) throw new Error("HTTP "+r.status);
-    const j = await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).json();
-    const m = new Map();
-    for (const e of j.BusInfo) m.set(e.RouteID+"|"+e.StopID, +e.EstimateTime);
-    const [ds, ts] = j.EssentialInfo.UpdateTime.split(" ");
-    LIVE = {map:m, at:new Date(ds.replace(/\//g,"-")+"T"+ts+"+08:00"), ms:Math.round(performance.now()-t0)};
-  }catch(e){ LIVE = null; }
+function phi(z){ // standard normal CDF, tanh approximation (error < 0.001)
+  return 0.5 * (1 + Math.tanh(0.7978845608 * (z + 0.044715 * z * z * z)));
 }
+const clampP = p => Math.min(0.99, Math.max(0.01, p));
+function liveVal(a){ if (!S.LIVE || !S.useLive || isMrt(a)) return undefined; return S.LIVE.map.get(akey(a)); }
 
-// ---- "missed this one": exclude the bus that just left and re-rank
-function missed(){ const m = store.json("missed", []); return m.filter(x => Date.now() - x.at < MISS_TTL); }
-let whatIf = [];   // a departure excluded only for the "if I miss this one" preview
-function excludedUntil(a){ // the departure I said I missed for this route+stop (ms), or 0
-  let u = 0; for (const x of missed().concat(whatIf)) if (x.k === a.rid+"|"+a.from) u = Math.max(u, x.board + 60000); return u;
-}
-
-// ---- one bus/train choice for a leg reached at time t (ms)
-function legChoice(a, t){
-  const reach = t + a.walk_before_s*1000, until = excludedUntil(a), hw = headway(a)*1000;
-  let busAt, safeAt, live = false, official = null, fix = null;
+// one bus/train for a leg when I can be at its stop at t + walk; excl: {"rid|stop": ms} departures to skip
+function legChoice(a, t, excl){
+  const reach = t + a.walk_before_s*1000, until = (excl && excl[akey(a)]) || 0, hw = headway(a)*1000;
+  let busAt, safeAt, live = false, fix = null;
   if (isMrt(a)){
-    busAt = reach + hw/2; safeAt = busAt;
-    while (busAt <= until){ busAt += hw; safeAt = busAt; }
+    busAt = reach + hw/2; while (busAt <= until) busAt += hw; safeAt = busAt;
   } else {
-    const v = LIVE ? LIVE.map.get(a.rid+"|"+a.from) : undefined;
-    if (v != null && v < 0) return null;                       // not running now
+    const v = liveVal(a);
+    if (v != null && v < 0) return {none: v, a};
     if (v != null){
       live = true;
-      official = +LIVE.at + v*1000;                            // the official estimate, absolute
+      let official = +S.LIVE.at + v*1000;
       fix = etaFix(Math.max(0, official - reach)/1000);
       busAt = official + fix.bias*1000; safeAt = official + fix.early*1000;
-      // gone before I can get there, or the one I said I missed: the next one (headway estimate, not live)
-      while (busAt < reach || busAt <= until){ official += hw; busAt += hw; safeAt += hw; live = false; }
+      while (busAt < reach || busAt <= until){ busAt += hw; safeAt += hw; live = false; }
     } else {
-      busAt = reach + typicalWait(a, new Date(reach))*1000; safeAt = busAt;
-      while (busAt <= until){ busAt += hw; safeAt = busAt; }
+      busAt = reach + typicalWait(a, new Date(reach))*1000; while (busAt <= until) busAt += hw; safeAt = busAt;
     }
-    if (busAt < reach) busAt = reach;
   }
   const arr = busAt + rideP(a, new Date(busAt))*1000;
-  return {a, reach, board: busAt, safe: Math.max(t, Math.min(safeAt, busAt)), arr, live, official, fix, walk: a.walk_before_s};
+  return {a, reach, board: busAt, safe: Math.max(t, Math.min(safeAt, busAt)), arr, live, fix, walk: a.walk_before_s};
 }
-function evaluate(o, now){
-  if (!o.legs.length) return {o, arrive:new Date(+now + o.walk_after_s*1000), leave:now, total:o.walk_after_s, live:false, pTransfer:null, pick:[]};
-  let t = +now; const pick = []; let pTransfer = null;
+// chance I make the transfer from prev to next (prev ride time varies; next bus at next.board)
+function transferProb(prev, next){
+  if (isMrt(next.a)) return null;
+  const slack = (next.board - prev.board)/1000 - next.walk;
+  const c = rideCdf(prev.a, new Date(prev.board), slack);
+  if (c != null) return clampP(c);
+  const mean = prev.a.ride_s, sd = isMrt(prev.a) ? 60 : Math.max(60, 0.15*mean);
+  return clampP(phi((slack - mean)/sd));
+}
+// chance a bus expected at boardAt has not left before I get there at reachAt
+function catchProb(boardAt, reachAt, sdS){ return clampP(phi((boardAt - reachAt)/1000/(sdS || 60))); }
+function evaluate(o, now, excl){
+  if (!o.legs.length) return {o, arrive: now + o.walk_after_s*1000, leave: now, pick: [], probs: [], live: false, delay: 0};
+  let t = now; const pick = [], probs = [];
   for (let n = 0; n < o.legs.length; n++){
-    let best = null;
-    for (const a of o.legs[n].alts){ const c = legChoice(a, t); if (c && (!best || c.arr < best.arr)) best = c; }
-    if (!best) return null;
-    if (n === 1 && best.live && pick[0]){
-      const slack = (best.board - pick[0].board)/1000 - best.walk;
-      pTransfer = rideCdf(pick[0].a, new Date(pick[0].board), slack);
-    }
+    let best = null, none = null;
+    for (const a of o.legs[n].alts){ const c = legChoice(a, t, excl); if (c.none != null){ none = none || c; continue; } if (!best || c.arr < best.arr) best = c; }
+    if (!best) return n === 0 && none ? {o, gone: none} : null;
+    probs.push(n ? transferProb(pick[n-1], best) : null);
     pick.push(best); t = best.arr;
   }
-  const first = pick[0];
-  // leave so I am at the stop by the "safe" time (official ETA corrected by its measured early bias)
-  const leave = new Date(Math.max(+now, first.safe - first.walk*1000));
-  const arrive = new Date(t + o.walk_after_s*1000);
-  return {o, arrive, leave, total:(arrive-now)/1000, live: pick.some(p => p.live), pTransfer, pick};
+  const first = pick[0], leave = Math.max(now, first.safe - first.walk*1000);
+  // delay: the next bus is further away than a scheduled headway (live only)
+  const gap = first.live ? (first.board - first.reach)/1000 - headway(first.a) : 0;
+  return {o, pick, probs, leave, arrive: t + o.walk_after_s*1000, live: pick.some(p => p.live), delay: gap >= 180 ? Math.round(gap/60) : 0};
+}
+// arrive-by: latest departure that still arrives by `by`
+function evaluateBy(o, by){
+  let d = by - 90*MIN, ev = null;
+  for (let i = 0; i < 4; i++){ const e = evaluate(o, d); if (!e || e.gone) return null; if (e.arrive <= by){ ev = e; d += Math.max(MIN, by - e.arrive); } else d -= Math.max(MIN, e.arrive - by); }
+  return ev;
 }
 
-// ---- rendering
-function countdown(leave, now){
-  const s = (leave - now)/1000;
-  if (s <= 20) return {txt:"現在出門", cls:"late"};
-  if (s < 180) return {txt:`還有 ${Math.floor(s/60)}:${pad(Math.floor(s%60))}`, cls:"soon"};
-  return {txt:`還有 ${Math.round(s/60)} 分`, cls:""};
+// places and routes between them (saved places = trip ends; stops = every stop already in the data)
+const placeName = s => s === "家" ? "住家" : s;
+function tripEnds(t){ const p = String(t.label).split("→"); return [placeName((p[0]||"").trim()), placeName((p[1]||"").trim())]; }
+function savedPlaces(){ const out = []; for (const t of S.IT.trips) for (const p of tripEnds(t)) if (p && !out.includes(p)) out.push(p); return out; }
+function stopPlaces(){
+  const m = new Map();
+  for (const t of S.IT.trips) for (const o of t.options) for (const lg of o.legs){
+    for (const nm of [lg.from_name, lg.to_name]) if (!m.has(nm)) m.set(nm, {name: nm, mrt: false, routes: []});
+    const x = m.get(lg.from_name);
+    for (const a of lg.alts){ if (isMrt(a)) x.mrt = true; const r = routeLabel(a); if (!x.routes.includes(r)) x.routes.push(r); }
+    if (lg.alts.some(isMrt)) m.get(lg.to_name).mrt = true;
+  }
+  return [...m.values()];
 }
-function liveLine(ev, now, atStop){
-  if (!ev.o.legs.length) return "";
-  const p = ev.pick[0], w = (p.board - now)/60000, where = atStop ? "" : `到${esc(ev.o.legs[0].from_name)}`;
-  const when = w < 1 ? "進站中" : `${Math.round(w)} 分後${where}`;
-  return `<div class="live"><span class="dot ${p.live?"":"stat"}"></span><span>${esc(routeLabel(p.a))} ${when}</span>
-    <span class="note" style="margin:0">${p.live ? "即時" : "統計"}</span></div>`;
+function routeLabel(a){
+  if (isMrt(a)){ const l = (a.lines || "G")[0]; return (LINE[l] || LINE.G)[1]; }
+  const r = S.IT.routes[String(a.rid)]; return r ? r.name.replace(/^內科通勤專車/, "內科") : String(a.rid);
 }
-function earlyNote(ev, now, atStop){
-  const p = ev.pick[0]; if (!p || !p.live || !p.fix) return "";
-  const early = Math.round(-p.fix.early/60);
-  if (early < 1) return "";
-  const off = Math.round((p.official - now)/60000);
-  if (off < 3) return "";
-  return atStop ? `<div class="note">官方說 ${off} 分；實測常提早到，可能早 ${early} 分就來，先站好</div>`
-                : `<div class="note">官方說 ${off} 分；這站實測常早到，已提早 ${early} 分叫你出門</div>`;
+const LINE = {G: ["--mrt-g", "松山新店線", 0], B: ["--mrt-br", "文湖線", 1], O: ["--mrt-o", "中和新蘆線", 1], R: ["--mrt-r", "淡水信義線", 0], L: ["--mrt-bl", "板南線", 0]};
+function findOptions(from, to){
+  const out = [], seen = new Map();
+  if (!from || !to || from === to) return out;
+  for (const t of S.IT.trips){
+    const [O, D] = tripEnds(t);
+    for (const o of t.options){
+      if (!o.legs.length){ if (from === O && to === D) out.push({...o, origin: from, dest: to, fare: 0}); continue; }
+      const i = from === O ? 0 : o.legs.findIndex(lg => lg.from_name === from);
+      if (i < 0) continue;
+      let j = -1;
+      if (to === D) j = o.legs.length - 1; else for (let k = i; k < o.legs.length; k++) if (o.legs[k].to_name === to){ j = k; break; }
+      if (j < 0) continue;
+      let legs = o.legs.slice(i, j + 1);
+      if (from !== O) legs = [{...legs[0], alts: legs[0].alts.map(a => ({...a, walk_before_s: 0}))}, ...legs.slice(1)];
+      const opt = {id: o.id + (i || j < o.legs.length - 1 ? ":" + i + "-" + j : ""), legs, walk_after_s: to === D ? o.walk_after_s : 0,
+                   fare: i === 0 && j === o.legs.length - 1 ? o.fare : null, habit: !!o.habit && from === O && to === D, origin: from, dest: to};
+      const key = legs.map(lg => lg.from_name + ">" + lg.to_name + (lg.alts.some(isMrt) ? "#M" : "")).join("|");
+      const prev = seen.get(key);
+      if (!prev){ seen.set(key, opt); out.push(opt); continue; }
+      prev.walk_after_s = Math.min(prev.walk_after_s, opt.walk_after_s);
+      if (prev.fare == null || (opt.fare != null && opt.fare < prev.fare)) prev.fare = opt.fare;
+      prev.legs = prev.legs.map((lg, k) => { const have = new Set(lg.alts.map(a => a.rid+"|"+a.from+"|"+a.to));
+        return {...lg, alts: lg.alts.concat(legs[k].alts.filter(a => !have.has(a.rid+"|"+a.from+"|"+a.to)))}; });
+    }
+  }
+  return out;
 }
-function transferNote(ev){
-  if (ev.pTransfer == null || ev.pTransfer >= 0.8) return "";
-  return `<div class="note warn">轉乘趕上機率 ${Math.round(ev.pTransfer*100)}%</div>`;
+// one option per first-leg route (the at-stop board and the "missed" list)
+function perRoute(opts){ return opts.flatMap(o => o.legs.length ? o.legs[0].alts.map(a => ({...o, legs: [{...o.legs[0], alts: [a]}, ...o.legs.slice(1)]})) : []); }
+function stopBoard(stop, to, now, excl, n){
+  const best = new Map();
+  for (const o of perRoute(findOptions(stop, to))){
+    const ev = evaluate(o, now, excl); if (!ev || ev.gone) continue;
+    const k = routeLabel(ev.pick[0].a), cur = best.get(k);
+    if (!cur || ev.arrive < cur.arrive) best.set(k, ev);
+  }
+  return [...best.values()].sort((a, b) => a.arrive - b.arrive || a.pick[0].board - b.pick[0].board).slice(0, n || 3);
 }
-function nextAfter(ev, now){ // what I'd do if this bus leaves without me
-  const p = ev.pick[0]; if (!p) return null;
-  whatIf = [{k: p.a.rid+"|"+p.a.from, board: p.board, at: Date.now()}];
-  try{ return rankAll(now)[0] || null; } finally { whatIf = []; }
+// transfers: legs - 1, plus each line change inside one MRT ride (松山新店線 › 文湖線 counts)
+const transfers = ev => Math.max(0, ev.o.legs.reduce((n, lg, k) => n + (isMrt(lg.alts[0]) ? Math.max(1, (((ev.pick && ev.pick[k] ? ev.pick[k].a : lg.alts[0]).lines) || "G").length) : 1), 0) - 1);
+function sortEvs(evs, by){
+  const fast = (a, b) => Math.abs(a.arrive - b.arrive) >= MIN ? a.arrive - b.arrive : b.leave - a.leave;
+  const cmp = by === "transfers" ? (a, b) => transfers(a) - transfers(b) || fast(a, b)
+            : by === "fare" ? (a, b) => (a.o.fare == null ? 1e9 : a.o.fare) - (b.o.fare == null ? 1e9 : b.o.fare) || fast(a, b)
+            : fast;
+  return evs.slice().sort(cmp);
 }
-function rankAll(now){
-  const t = tripObj(), here = currentHere(t);
-  const opts = here ? fromHere(t.options, here) : t.options;
-  // same arrival (within a minute): at a stop the bus that comes first wins; at home the later departure wins
-  const first = ev => ev.pick[0] ? ev.pick[0].board : 0;
-  return opts.map(o => evaluate(o, now)).filter(Boolean)
-    .sort((a,b) => Math.abs(a.arrive - b.arrive) >= 60000 ? a.arrive - b.arrive : here ? first(a) - first(b) : b.leave - a.leave);
+
+// ---- 出發 lock: the followed route never changes on refresh; only its own live times move
+function makeLock(ev, q, now){
+  const o = {...ev.o, legs: ev.o.legs.map((lg, n) => ({...lg, alts: [ev.pick[n].a]}))};
+  return {v: 1, q, o, T: ev.pick.map(p => p.board), live: ev.pick.map(p => p.live), passed: ev.pick.map(() => false), start: now, at: now};
 }
+function refreshLock(L, now){
+  L.o.legs.forEach((lg, n) => {
+    if (L.passed[n]) return;
+    const a = lg.alts[0], hw = headway(a)*1000, v = liveVal(a);
+    if (v != null && v >= 0){
+      const official = +S.LIVE.at + v*1000, N = official + etaFix(Math.max(0, official - now)/1000).bias*1000;
+      if (Math.abs(N - L.T[n]) <= hw/2){ L.T[n] = N; L.live[n] = true; }
+      else if (N > L.T[n] + hw/2){
+        if (now >= L.T[n] - 2*MIN) L.passed[n] = true;     // ours went by; the feed already shows the next one
+        else { L.T[n] = N; L.live[n] = true; }               // ours does not exist: the first real one of this route
+      }
+    }
+    if (!L.passed[n] && now >= L.T[n] + 30000) L.passed[n] = true;
+  });
+  return L;
+}
+function lockView(L, now){
+  const steps = [];
+  L.o.legs.forEach((lg, n) => {
+    const a = lg.alts[0], walk = a.walk_before_s*1000;
+    const reach = (n ? steps[n-1].arr : L.start) + walk, board = L.T[n];
+    const arr = board + rideP(a, new Date(board))*1000;
+    const s = {a, lg, n, walk: a.walk_before_s, reach, board, arr, live: !!L.live[n], passed: !!L.passed[n], prob: null};
+    s.prob = n ? transferProb(steps[n-1], s) : catchProb(board, reach, s.live ? etaFix(Math.max(0, board - now)/1000).sd : headway(a)/4);
+    steps.push(s);
+  });
+  const last = steps[steps.length - 1], arrive = (last ? last.arr : L.start) + L.o.walk_after_s*1000;
+  let phase = "final", leg = steps.length - 1;
+  for (const s of steps){
+    if (!s.passed){ phase = s.n && now < steps[s.n-1].arr ? "ride" : "walk"; leg = s.n && now < steps[s.n-1].arr ? s.n - 1 : s.n; break; }
+    if (s.reach > s.board + MISS_SLACK){ phase = "missed"; leg = s.n; break; }
+    if (s === last) { phase = now < s.arr ? "ride" : "final"; leg = s.n; }
+  }
+  return {phase, leg, steps, arrive, leave: L.start};
+}
+function lockExpired(L, now){ const v = lockView(L, now); return now - L.at > LOCK_TTL || (v.phase === "final" && now > v.arrive + ARRIVE_GRACE); }
+// missed: every departure from the stop I missed it at, soonest arrival first (the missed bus excluded)
+function missedChoices(L, now){
+  const v = lockView(L, now), s = v.steps[v.leg];
+  return stopBoard(s.lg.from_name, L.o.dest || L.q.to, now, {[akey(s.a)]: s.board + MIN}, 3);
+}
+// 改下一班 (not missed): the next departure of the same route on the leg I have not boarded yet
+function relockNext(L, now){
+  const v = lockView(L, now), n = v.steps.findIndex(s => !s.passed);
+  if (n < 0) return L;
+  const s = v.steps[n], c = legChoice(s.a, s.reach - s.walk*1000, {[akey(s.a)]: s.board + MIN});
+  if (c.none != null) return L;
+  L.T[n] = c.board; L.live[n] = c.live;
+  let t = c.arr;   // later legs: first departure I can reach after the change
+  for (let m = n + 1; m < L.o.legs.length; m++){ const x = legChoice(L.o.legs[m].alts[0], t); if (x.none != null) break; L.T[m] = x.board; L.live[m] = x.live; t = x.arr; }
+  return L;
+}
+function relockTo(L, ev, now){ return makeLock(ev, L.q, now); }
+const LOCK_KEY = "cm_lock";
+function saveLock(store, L){ store.set(LOCK_KEY, JSON.stringify(L)); return L; }
+function loadLock(store, now){ // a lock survives reloads on this phone until 結束, arrival + 5 min, or 2 h
+  let L = null; try{ L = JSON.parse(store.get(LOCK_KEY)); }catch(e){ L = null; }
+  if (L && L.v === 1 && L.o && !lockExpired(L, now)) return L;
+  store.del(LOCK_KEY); return null;
+}
+function endLock(store){ store.del(LOCK_KEY); return null; }
+// ===== core:end
+
+// ---------------------------------------------------------------- UI
+const $ = id => document.getElementById(id);
+const DEMO = new URLSearchParams(location.search).get("demo");
+const mem = {};
+const store = DEMO ? {get: k => mem[k] ?? null, set: (k, v) => { mem[k] = v; }, del: k => { delete mem[k]; }}
+  : {get(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }, set(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }, del(k){ try{ localStorage.removeItem(k); }catch(e){} }};
+const sjson = (k, d) => { try{ return JSON.parse(store.get(k)) ?? d; }catch(e){ return d; } };
+const sput = (k, v) => store.set(k, JSON.stringify(v));
+const u = x => `<span class="u">${x}</span>`;   // keep together; wrap before it, never inside (unless it alone is too wide)
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+const U = {view: "s1", sort: "fast", q: null, sel: null, excl: null, stop: null, missSel: 0, field: "to", text: "", net: "ok", err: null, lock: null, loaded: false};
+
+const SEP = `<span class="sep">›</span>`;
+// a badge chain wraps only between "› badge" pairs, never leaving a "›" at a line end
+const chain = html => { const parts = html.split(SEP); return parts[0] + parts.slice(1).map(x => `<span class="nw">${SEP}${x}</span>`).join(""); };
+const dur = ev => Math.max(0, Math.floor(ev.arrive / MIN) - Math.floor(ev.leave / MIN));   // from the two times shown
+function chip(a){
+  if (isMrt(a)){
+    const ls = (a.lines || "G").split("").filter(x => LINE[x]);
+    return ls.map(x => `<span class="chip${LINE[x][2] ? " lt" : ""}" style="--c:var(${LINE[x][0]})">${LINE[x][1]}</span>`).join(SEP);
+  }
+  const nm = routeLabel(a), m = /^([紅藍棕綠橘])/.exec(nm), c = m ? {紅: "--mrt-r", 藍: "--mrt-bl", 棕: "--mrt-br", 綠: "--mrt-g", 橘: "--mrt-o"}[m[1]] : "--bus";
+  return `<span class="chip${c === "--mrt-br" || c === "--mrt-o" ? " lt" : ""}" style="--c:var(${c})">${esc(nm)}</span>`;
+}
+function railColor(a){ if (isMrt(a)){ const l = (a.lines || "G")[0]; return `var(${(LINE[l] || LINE.G)[0]})`; }
+  const m = /^([紅藍棕綠橘])/.exec(routeLabel(a)); return m ? `var(${{紅: "--mrt-r", 藍: "--mrt-bl", 棕: "--mrt-br", 綠: "--mrt-g", 橘: "--mrt-o"}[m[1]]})` : "var(--bus)"; }
+const dirOf = a => a.dir ? `往 ${esc(a.dir)}` : "";
+const fare = o => o.fare != null ? `｜NT$${o.fare}` : "";
+
+// data status
+function liveFresh(){ return S.LIVE && nowD() - S.LIVE.at < 3*MIN; }
+function statusTag(){ return U.net === "offline" ? `<span class="tag">離線</span>` : S.LIVE && S.useLive && U.net === "ok" ? `<span class="tag">即時</span>` : `<span class="tag">時刻表</span>`; }
+const retry = `<button type="button" class="btn" data-act="reload">重新整理</button>`;
+function banners(evs){
+  const out = [];
+  if (U.net === "offline") out.push(`<div class="err"><span>離線${S.LIVE ? `｜最後更新 ${hm(S.LIVE.at)}` : ""}</span>${retry}</div>`);
+  else if (S.LIVE && !liveFresh()) out.push(`<div class="err"><span>資料過期｜最後更新 ${hm(S.LIVE.at)}</span>${retry}</div>`);
+  else if (U.net === "fail") out.push(`<div class="err"><span>即時中斷｜時刻表</span>${retry}</div>`);
+  const top = evs.slice(0, 3).find(ev => ev.pick && ev.pick.length && !ev.pick[0].live && !isMrt(ev.pick[0].a));   // a shown card on timetable
+  if (U.net === "ok" && S.LIVE && S.useLive && top)
+    out.push(`<div class="err"><span>即時中斷｜${u(esc(routeLabel(top.pick[0].a)) + " 時刻表")} ${u(hm(top.pick[0].board) + " " + esc(top.o.legs[0].from_name))}</span>${retry}</div>`);
+  return out.join("");
+}
+
+// ---- query (出發地／目的地／時間)
+function defaultQuery(){
+  const saved = sjson("cm_q", null);
+  if (saved && Date.now() - saved.at < 20*MIN) return saved.q;
+  const t = S.IT.trips[nowD().getHours() < 12 ? 0 : Math.min(1, S.IT.trips.length - 1)], [from, to] = tripEnds(t);
+  return {from, to, mode: "dep", time: null};
+}
+function setQuery(q){ U.q = q; sput("cm_q", {q, at: Date.now()}); }
+function queryTime(){
+  const q = U.q, now = +nowD();
+  if (q.mode === "first"){ // earliest first bus of the routes boarding first
+    let t = null; for (const o of findOptions(q.from, q.to)) for (const a of (o.legs[0] || {alts: []}).alts){ const r = S.IT.routes[String(a.rid)]; if (r && r.first){ const x = atClock(r.first, now); if (t == null || x < t) t = x; } }
+    return t;
+  }
+  return q.time ? atClock(q.time, now) : now;
+}
+function results(){
+  const q = U.q, now = +nowD(), opts = findOptions(q.from, q.to);
+  let t = queryTime(); if (t == null) t = now;
+  S.useLive = q.mode === "dep" && Math.abs(t - now) < 30*MIN || q.mode === "arr" && t - now < 120*MIN;
+  let evs = [], gone = [];
+  for (const o of opts){
+    let ev;
+    if (q.mode === "arr") ev = evaluateBy(o, t);
+    else if (q.mode === "last"){ // the last departure each route still allows (timetable)
+      const l = Math.max(...(o.legs[0] || {alts: []}).alts.map(a => { const r = S.IT.routes[String(a.rid)]; return r && r.last ? atClock(r.last, now) : 0; }));
+      ev = l > 0 ? evaluate(o, l - 20*MIN) : null;
+    } else ev = evaluate(o, t, U.excl);
+    if (ev && ev.gone) gone.push(ev); else if (ev) evs.push(ev);
+  }
+  return {evs: sortEvs(evs, U.sort), gone, opts, t};
+}
+
+// ---- screens
+function fieldsHtml(focus){
+  const q = U.q;
+  const f = (k, lb) => focus ? `<label class="field${focus === k ? " focus" : ""}"><span class="lb">${lb}</span><input id="in-${k}" data-in="${k}" value="${esc(focus === k ? U.text : q[k])}" placeholder="搜尋車站或地點" autocomplete="off">${focus === k && U.text ? `<button type="button" class="x" data-act="clear" aria-label="清除">✕</button>` : ""}</label>`
+    : `<div class="field" role="button" tabindex="0" data-go="s5" data-f="${k}"><span class="lb">${lb}</span><span class="v t17 b">${esc(q[k])}</span></div>`;
+  return `<div class="row"><div class="col grow">${f("from", "出發地")}${f("to", "目的地")}</div><button type="button" class="btn" data-act="swap" aria-label="對調">⇅</button></div>`;
+}
+function timeLabel(){
+  const q = U.q;
+  return q.mode === "first" ? "首班" : q.mode === "last" ? "末班" : q.mode === "arr" ? `抵達 ${q.time}` : q.time ? `出發 ${q.time}` : `現在 ${hm(nowD())}`;
+}
+function card(ev, i){
+  const o = ev.o, p = ev.pick[0];
+  const chips = chain(ev.pick.map(x => chip(x.a)).join(SEP));
+  const delay = ev.delay && U.net === "ok" ? `<span class="tag warn">${esc(routeLabel(p.a))} 延誤 ${ev.delay} 分</span>`
+    : p && !p.live && !isMrt(p.a) && S.LIVE && S.useLive && U.net === "ok" ? `<span class="tag">時刻表</span>` : "";
+  const what = p ? [hm(p.board), o.legs[0].from_name, routeLabel(p.a), "上車"] : [];
+  // estimated board-line width (15 px bold: CJK 16, digits/Latin 9.5, two ideographic spaces + one gap) vs room left of 出發
+  const est = what.join("").replace(/[\x00-\x7f]/g, "").length * 16 + what.join("").replace(/[^\x00-\x7f]/g, "").length * 9.5 + 2 * 15 + 8;
+  const room = Math.min(innerWidth, 560) - 32 - 28 - 72;
+  const full = Math.min(innerWidth, 560) - 32 - 28, mrtShort = p && isMrt(p.a) && est > full;
+  const go = `<button type="button" class="btn go${i === 0 ? " pri" : ""}" data-lock="${i}">出發</button>`;
+  return `<div class="card rc${i === 0 ? " sel" : ""}${est > room ? " up" : ""}" data-open="${i}" role="button" tabindex="0">
+    <div class="t22 full">${hm(ev.leave)} ${esc(U.q.from)} → ${hm(ev.arrive)} ${esc(U.q.to)}</div>
+    <div class="row wrap mt1 full"><span class="t15 nw">${dur(ev)} 分｜${o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(o)}</span>${delay}</div>
+    ${chips ? `<div class="row wrap badges">${chips}</div>` : ""}
+    <span class="what t15">${p ? `<span class="u">${hm(p.board)}　<a class="lk" href="#" data-stop="${esc(o.legs[0].from_name)}">${esc(o.legs[0].from_name)}</a></span><span class="u">${mrtShort ? "" : esc(routeLabel(p.a)) + "　"}上車</span>` : ""}</span>${go}</div>`;
+}
+let LAST = {evs: []};
+function renderS1(){
+  const r = results(); LAST = r;
+  const seg = [["fast", "最快"], ["transfers", "最少轉乘"], ["fare", "最便宜"]].map(([k, l]) => `<button type="button" role="tab" aria-selected="${U.sort === k}" data-sort="${k}">${l}</button>`).join("");
+  let err = "";
+  if (r.gone.length){
+    const g = r.gone[0], a = g.gone.a, mrt = r.evs.findIndex(ev => ev.pick.some(p => isMrt(p.a)));
+    const what = g.gone.none === -3 ? "末班已過" : g.gone.none === -1 ? "尚未發車" : "今日停駛";
+    err += `<div class="err"><span>${what}｜${u(esc(g.o.legs[0].from_name) + " " + esc(routeLabel(a)))}</span>${mrt >= 0 ? `<button type="button" class="btn" data-open="${mrt}">改搭捷運</button>` : `<button type="button" class="btn" data-go="s5">改時間</button>`}</div>`;
+  }
+  if (!r.evs.length) err += !r.opts.length ? noRoute() : `<div class="err"><span>查無班次</span><button type="button" class="btn" data-go="s5">改時間</button></div>`;
+  return `${fieldsHtml(null)}
+    <div class="row sp mt2"><div class="field grow" role="button" tabindex="0" data-go="s5" data-f="time"><span class="lb">出發時間</span><span class="v t15">${timeLabel()}</span></div>${statusTag()}</div>
+    <div class="seg mt2" role="tablist">${seg}</div>
+    ${banners(r.evs)}${err}
+    ${r.evs.slice(0, 3).map(card).join("")}`;
+}
+function noRoute(){
+  const q = U.q, ll = n => S.IT.stops && S.IT.stops[n] ? S.IT.stops[n].join(",") : null;
+  const dest = ll(q.to) || q.to, orig = ll(q.from);
+  const url = "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + encodeURIComponent(dest) + (orig ? "&origin=" + encodeURIComponent(orig) : "");
+  return `<div class="err"><span>查無路線</span><a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">開 Google 地圖</a></div>`;
+}
+
+// timeline rows (shared by S2 and S6)
+const stRow = (t, name, label, end, past) => `<div class="st${past ? " past" : ""}"><span class="tm">${t == null ? "" : hm(t)}</span><span class="dot${end ? " end" : ""}"></span><span class="nm"><span class="n">${esc(name)}</span><span class="r">${label}</span></span></div>`;
+const walkSeg = (txt, h) => `<div class="sg"${h ? ` style="min-height:${h}px"` : ""}><span></span><span class="rail walk"></span><span class="ct">${txt}</span></div>`;
+function rideSeg(a, lg, board, arr, extra){
+  const car = lg.hint && lg.hint[2] ? `<span>${esc(lg.hint[2])}</span>` : "";
+  return `<div class="sg" style="min-height:64px"><span></span><span class="rail" style="--c:${railColor(a)}"></span><span class="ct">
+    <span class="row wrap">${chip(a)}<span class="hd">${dirOf(a)}</span></span>
+    <span>${a.ns ? `${a.ns} 站｜` : ""}${minsR((arr - board)/1000)} 分</span>${car}${extra || ""}</span></div>`;
+}
+function xferSeg(s, prob){
+  const exit = s.lg.hint && s.lg.hint[0] ? `${esc(s.lg.hint[0])} 號出口` : "";
+  const parts = [`轉乘 ${esc(routeLabel(s.a))}`, s.walk >= 30 ? `步行 ${minsR(s.walk)} 分` : "", prob != null ? `趕上機率 ${Math.round(prob*100)}%` : "", exit].filter(Boolean);
+  return walkSeg(`<span class="hd">${parts.map((x, k) => u(x + (k < parts.length - 1 ? "｜" : ""))).join("")}</span>`);
+}
+function timeline(steps, opts){
+  // steps: [{a, lg, board, arr, walk, prob, live}] ; opts: {from, leave, to, arrive, walkAfter, startAt (index), nextDep, liveMarks}
+  const h = [];
+  const start = opts.startAt || 0;
+  if (!start && opts.from != null){
+    h.push(stRow(opts.leave, opts.from, "出發"));
+  }
+  steps.forEach((s, k) => {
+    if (k < start) return;
+    const n = k;
+    if (n === 0 && opts.from != null && s.walk >= 30){
+      const exit = s.lg.hint && s.lg.hint[0] ? `｜${esc(s.lg.hint[0])} 號出口` : "";
+      h.push(walkSeg(`步行 ${minsR(s.walk)} 分${exit}`));
+    }
+    if (n > start || (n > 0 && n === start && opts.showXfer)) h.push(xferSeg(s, s.prob));
+    const liveMark = opts.liveMarks && s.live && n > start ? "　即時" : "";
+    if (!(opts.skipBoardOf === n)) h.push(stRow(s.board, s.lg.from_name, (n > 0 && opts.liveMarks ? esc(routeLabel(s.a)) + " " : "") + "上車" + liveMark));
+    const next = opts.nextDep && !isMrt(s.a) ? opts.nextDep(s) : "";
+    if (!(opts.skipBoardOf === n)) h.push(rideSeg(s.a, s.lg, s.board, s.arr, next));
+    const exitOut = s.lg.hint && s.lg.hint[1] ? `　${esc(s.lg.hint[1])} 號出口` : "";
+    h.push(stRow(s.arr, s.lg.to_name, "下車" + (opts.liveMarks && opts.liveArr === n ? "　即時" : "") + exitOut));
+  });
+  if (opts.walkAfter >= 30) h.push(walkSeg(`步行 ${minsR(opts.walkAfter)} 分`, 32));
+  h.push(stRow(opts.arrive, opts.to, "抵達", true));
+  return `<div class="tl">${h.join("")}</div>`;
+}
+function evSteps(ev){ return ev.pick.map((p, n) => ({a: p.a, lg: ev.o.legs[n], board: p.board, arr: p.arr, walk: p.walk, prob: ev.probs[n], live: p.live})); }
+function backBtn(){ return `<div class="row"><button type="button" class="btn back" data-act="back">‹ 返回</button></div>`; }
+function currentEv(){
+  const ev = U.sel && evaluate(U.sel, +nowD(), U.excl);
+  return ev && !ev.gone ? ev : null;
+}
+function renderS2(){
+  const ev = currentEv();
+  if (!ev) return backBtn() + `<div class="err"><span>查無班次</span><button type="button" class="btn" data-act="back">返回</button></div>`;
+  const now = +nowD();
+  const nextDep = s => { const c = legChoice({...s.a, walk_before_s: 0}, s.board - MIN, {[akey(s.a)]: s.board + MIN}); return c.none == null ? `<span>下一班 ${u(hm(c.board) + " " + esc(s.lg.from_name))}</span>` : ""; };
+  return `${backBtn()}
+    <div class="t22">${hm(ev.leave)} ${esc(U.q.from)} → ${hm(ev.arrive)} ${esc(U.q.to)}</div>
+    <div class="row sp mt1"><span class="t15">${dur(ev)} 分｜${ev.o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(ev.o)}</span>${ev.delay ? `<span class="tag warn">${esc(routeLabel(ev.pick[0].a))} 延誤 ${ev.delay} 分</span>` : statusTag()}</div>
+    ${timeline(evSteps(ev), {from: U.q.from, leave: ev.leave, to: U.q.to, arrive: ev.arrive, walkAfter: ev.o.walk_after_s, nextDep})}
+    <div class="foot"><button type="button" class="btn pri wide" data-act="lock">出發</button>${ev.pick.length ? `<button type="button" class="btn wide" data-act="later">改下一班</button>` : ""}</div>`;
+}
+function renderS3(){
+  const now = +nowD(), stop = U.stop, to = U.q.to;
+  const rows = stopBoard(stop, to, now, null, 3);
+  const near = nearFirst(nearbyStops(stop), stop);
+  const list = rows.map((ev, i) => {
+    const p = ev.pick[0], w = (p.board - now)/MIN, via = ev.pick.slice(1);
+    const sub = via.length ? `轉乘　${u(esc(ev.o.legs[1].from_name))}　${u(via.map(x => esc(routeLabel(x.a))).join("・"))}` : `下車　${esc(ev.o.legs[0].to_name)}`;
+    return `<div class="brow" data-board="${i}" role="button" tabindex="0">${chip(p.a)}<span class="cd ${i ? "t22" : "t28"}">${w < 1 ? "進站" : Math.round(w) + " 分"}</span><span class="grow right t17${i ? "" : " b"}">${hm(ev.arrive)} ${esc(to)}</span><span class="sub t13 g">${sub}</span></div>`;
+  }).join("");
+  S3ROWS = rows;
+  return `${backBtn()}
+    <div class="row sp"><span class="t22">${esc(stop)}</span>${statusTag()}</div>
+    <div class="t13 g">目的地　${esc(to)}</div>
+    ${banners(rows)}
+    ${rows.length ? `<div class="list mt2">${list}</div>` : `<div class="err"><span>查無班次｜${esc(stop)}</span><button type="button" class="btn" data-go="s5">改時間</button></div>`}
+    ${near.length > 1 ? `<div class="t12 g mt3">附近站牌</div><div class="row wrap mt1">${near.map(n => `<a href="#" class="btn${n === stop ? " pri" : ""}" data-stop="${esc(n)}">${esc(n)}</a>`).join("")}</div>` : ""}`;
+}
+let S3ROWS = [];
+function nearbyStops(stop){
+  const all = [...new Set(findOptions(U.q.from, U.q.to).flatMap(o => o.legs.slice(0, 1).map(lg => lg.from_name)))];
+  if (!all.includes(stop)) all.unshift(stop);
+  const p = S.IT.stops && S.IT.stops[stop];
+  if (!p) return all.slice(0, 4);
+  const d = n => { const q = S.IT.stops[n]; if (!q) return 1e9; return Math.hypot((q[0]-p[0])*111000, (q[1]-p[1])*111000*Math.cos(p[0]*Math.PI/180)); };
+  return all.filter(n => d(n) <= 600).sort((a, b) => d(a) - d(b)).slice(0, 4);
+}
+const nearFirst = (list, stop) => [stop, ...list.filter(n => n !== stop)];
+function renderS5(){
+  const q = U.q, focus = U.field === "time" ? "to" : U.field, text = U.text.trim();
+  const saved = savedPlaces(), stops = stopPlaces();
+  const match = text ? [...saved.map(n => ({name: n, saved: true})), ...stops.filter(s => !saved.includes(s.name))].filter(p => p.name.includes(text)) : [];
+  const rows = match.slice(0, 6).map(p => `<div class="opt" data-pick="${esc(p.name)}" role="button" tabindex="0"><span class="t17 b">${esc(p.name)}</span>${p.saved ? `<span class="tag">已儲存</span>` : `<span class="tag">${p.mrt ? "捷運" : "公車站"}</span>`}<span class="t13 g right">${p.routes ? p.routes.slice(0, 3).map(esc).join("・") : ""}</span></div>`).join("");
+  const recent = sjson("cm_recent", []).filter(n => n !== q[focus] && n !== text).slice(0, 3);
+  const modes = [["dep", "出發"], ["arr", "抵達"]].concat(Object.values(S.IT.routes).some(r => r.first) ? [["first", "首班"], ["last", "末班"]] : []);
+  const d = nowD();
+  return `${backBtn()}${fieldsHtml(focus)}
+    ${text ? (rows ? `<div class="list mt2">${rows}</div>` : noRouteFor(text)) : ""}
+    <div class="t12 g mt3">已儲存</div>
+    <div class="row wrap mt1">${saved.map(n => `<button type="button" class="btn" data-pick="${esc(n)}">${esc(n)}</button>`).join("")}</div>
+    ${recent.length ? `<div class="t12 g mt3">最近搜尋</div><div class="list">${recent.map(n => { const s = stops.find(x => x.name === n); return `<div class="opt" data-pick="${esc(n)}" role="button" tabindex="0"><span class="t17">${esc(n)}</span>${s ? `<span class="tag">${s.mrt ? "捷運" : "公車站"}</span>` : ""}</div>`; }).join("")}</div>` : ""}
+    <div class="seg mt3" role="tablist">${modes.map(([k, l]) => `<button type="button" role="tab" aria-selected="${q.mode === k}" data-mode="${k}">${l}</button>`).join("")}</div>
+    <div class="row mt2"><label class="field grow"><span class="lb">時間</span><span class="t17 nw">${pad(d.getMonth()+1)}/${pad(d.getDate())} <span id="tv">${q.mode === "first" ? "首班" : q.mode === "last" ? "末班" : q.time || hm(d)}</span></span><input type="time" class="ov" id="in-time" value="${q.time || hm(d)}"${q.mode === "first" || q.mode === "last" ? " disabled" : ""}></label><button type="button" class="btn pri" data-act="search">搜尋</button></div>`;
+}
+function noRouteFor(text){
+  const url = "https://www.google.com/maps/dir/?api=1&travelmode=transit&destination=" + encodeURIComponent(text);
+  return `<div class="err"><span>查無路線</span><a class="btn" href="${url}" target="_blank" rel="noopener noreferrer">開 Google 地圖</a></div>`;
+}
+
+// S6: locked
+function renderS6(){
+  const L = U.lock, now = +nowD(), v = lockView(L, now), s = v.steps[v.leg], to = L.q.to;
+  const head = `<div class="row sp"><span class="tag on">已出發</span>${statusTag()}</div>`;
+  const end = `<button type="button" class="btn wide" data-act="end">結束</button>`;
+  const arriveLine = `<div class="t15 mt1">${hm(v.arrive)}　${esc(to)}　抵達</div>`;
+  if (v.phase === "missed"){
+    const ch = missedChoices(L, now); MISSED = ch;
+    const sel = Math.min(U.missSel, Math.max(0, ch.length - 1));
+    return `${head}
+      <div class="t17 b mt2">錯過　${hm(s.board)}　${esc(s.lg.from_name)}　${esc(routeLabel(s.a))}</div>
+      <div class="t12 g mt3">其他班次｜最快抵達</div>
+      ${ch.map((ev, i) => { const p = ev.pick[0], w = (p.board - now)/MIN;
+        return `<div class="card${i === sel ? " sel" : ""}" data-miss="${i}" role="button" tabindex="0"><div class="row">${chip(p.a)}<span class="t22">${w < 1 ? "進站" : "到站 " + Math.round(w) + " 分"}</span><span class="t17 right${i === sel ? " b" : ""}">${hm(ev.arrive)} ${esc(to)}</span></div>
+          <div class="t13 mt1">${u(hm(p.board) + "　" + esc(ev.o.legs[0].from_name) + "　上車｜")}${u(`轉乘 ${transfers(ev)}${fare(ev.o)}`)}</div></div>`; }).join("") || `<div class="err"><span>查無班次｜${esc(s.lg.from_name)}</span>${end}</div>`}
+      <div class="foot">${ch.length ? `<button type="button" class="btn pri wide" data-act="switch">改下一班</button>` : ""}${end}</div>`;
+  }
+  if (v.phase === "walk"){
+    const w = (s.board - now)/MIN, walkLeft = minsUp(s.reach - now);
+    const more = v.steps.some((x, k) => k >= v.leg && !x.passed);
+    return `${head}
+      <div class="next"><div class="row">${chip(s.a)}<span class="t22">${esc(s.lg.from_name)}</span><span class="t28 nw cdn">${w < 1 ? "進站" : "到站 " + Math.round(w) + " 分"}</span></div>
+        <div class="t15 b mt1">${hm(s.board)}　${esc(s.lg.from_name)}　${s.live ? "即時" : "時刻表"}</div>
+        <div class="t15 mt1">${walkLeft > 0 ? `步行 ${walkLeft} 分｜` : ""}趕上機率 ${Math.round(s.prob*100)}%</div>${arriveLine}</div>
+      ${timeline(v.steps, {to, arrive: v.arrive, walkAfter: L.o.walk_after_s, startAt: v.leg, liveMarks: true})}
+      <div class="foot">${more ? `<button type="button" class="btn wide" data-act="next">改下一班</button>` : ""}${end}</div>`;
+  }
+  if (v.phase === "ride"){
+    const left = s.a.ns ? Math.max(1, Math.ceil(s.a.ns * (s.arr - now) / Math.max(1, s.arr - s.board))) : null;
+    const nx = v.steps[v.leg + 1];
+    return `${head}
+      <div class="next"><div class="row">${chip(s.a)}<span class="t22">${esc(s.lg.to_name)}</span><span class="t22">下車</span><span class="t28 nw cdn">${left ? `剩 ${left} 站` : `剩 ${minsUp(s.arr - now)} 分`}</span></div>
+        ${nx ? `<div class="t15 b mt1">轉乘 ${esc(routeLabel(nx.a))}｜${hm(nx.board)} ${esc(nx.lg.from_name)}${nx.prob != null ? `｜趕上機率 ${Math.round(nx.prob*100)}%` : ""}</div>` : ""}${arriveLine}</div>
+      ${timeline(v.steps, {to, arrive: v.arrive, walkAfter: L.o.walk_after_s, startAt: v.leg, skipBoardOf: v.leg, liveMarks: true, liveArr: v.leg})}
+      <div class="foot">${nx ? `<button type="button" class="btn wide" data-act="next">改下一班</button>` : ""}${end}</div>`;
+  }
+  return `${head}
+    <div class="next"><div class="row"><span class="t22 grow">${esc(to)}　抵達</span><span class="t28 nw">${hm(v.arrive)}</span></div>
+      ${L.o.walk_after_s >= 30 ? `<div class="t15 mt1">步行 ${minsUp(v.arrive - now)} 分｜${hm(v.arrive)}　${esc(to)}</div>` : ""}</div>
+    <div class="foot">${end}</div>`;
+}
+let MISSED = [];
 
 function render(){
-  if (!IT) return;
-  const now = new Date(), t = tripObj(), here = currentHere(t);
-  renderTrips();
-  ranked = rankAll(now);
-  // my usual route (config include[0]) evaluated from the same place, for the "minutes saved" count
-  const habit = t.options.find(o => o.habit);
-  habitEv = !habit ? null : here ? (ranked.find(ev => ev.o.id === habit.id) || null) : evaluate(habit, now);
-  const best = ranked[0], ms = missed();
-  const hero = $("hero");
-  const ctx = `<div class="ctx"><span>${here ? `在「${esc(here)}」` : esc(t.label)}${LIVE ? "" : "・沒有即時，用統計"}</span>
-    ${here ? `<button type="button" data-act="home">回出發地</button>` : ""}</div>`;
-  const missHead = ms.length ? `<div class="missed"><span>剛錯過 ${ms.map(x => esc(routeLabel({rid:x.k.split("|")[0]})) + "（" + hm(new Date(x.board)) + "）").join("、")}</span>
-    <button type="button" data-act="unmiss">復原</button></div>` : "";
-  if (!best){
-    hero.innerHTML = ctx + missHead + `<div class="arr" style="margin-top:8px">${here ? "這站現在沒有可用的車" : "現在沒有可用的車"}</div>`;
-    $("alts").innerHTML = ""; $("allList").innerHTML = ""; renderFoot(now); return;
+  if (!S.IT) return;
+  const now = +nowD();
+  if (U.lock){
+    refreshLock(U.lock, now);
+    if (lockExpired(U.lock, now)){ U.lock = endLock(store); U.view = "s1"; }
+    else saveLock(store, U.lock);
   }
-  const nx = best.o.legs.length ? nextAfter(best, now) : null;
-  let missBtn = "";
-  if (nx){
-    const late = Math.round((nx.arrive - best.arrive)/60000), np = nx.pick[0];
-    const what = np ? `${esc(routeLabel(np.a))} ${hm(new Date(np.board))}` : "走路";
-    missBtn = `<button class="miss" type="button" data-act="miss">錯過這班 → 改搭 ${what}，${hm(nx.arrive)} 到${late > 0 ? `（晚 ${late} 分）` : "（一樣快）"}</button>`;
-  }
-  if (here){
-    hero.innerHTML = ctx + missHead + board(now, best) + missBtn;
-  } else {
-    const cd = countdown(best.leave, now);
-    hero.innerHTML = ctx + missHead + `
-      <div class="big"><span class="when">${hm(best.leave)}<small>出門</small></span><span class="cd ${cd.cls}">${cd.txt}</span></div>
-      <div class="arr">${hm(best.arrive)} 到 <span>· ${mins(best.total)} 分${best.o.fare != null ? ` · NT$${best.o.fare}` : ""}</span></div>
-      ${badgeRow(best)}${liveLine(best, now, false)}${earlyNote(best, now)}${transferNote(best)}${missBtn}`;
-  }
-  // runner-ups: two rows only (origin mode); the board already lists every bus
-  const rest = here ? [] : ranked.slice(1, 3);
-  $("alts").innerHTML = rest.length ? `<h2>也可以</h2><div class="rows">${rest.map((ev, i) => `
-    <button class="row" type="button" data-open="${i+1}"><div class="l">${badgeRow(ev, true)}
-      <span class="sub">${hm(ev.leave)} 出門${ev.o.legs.length ? " · " + esc(ev.o.legs[0].from_name) + "上車" : ""}${transferNote(ev) ? " · 轉乘 " + Math.round(ev.pTransfer*100) + "%" : ""}</span></div>
-      <div class="r"><b>${hm(ev.arrive)}</b><small>+${Math.max(0, Math.round((ev.arrive-best.arrive)/60000))} 分</small></div></button>`).join("")}</div>` : "";
-  $("allList").innerHTML = ranked.map((ev, i) => timeline(ev, i, best, now)).join("") || `<div class="note">沒有其他方案</div>`;
-  renderFoot(now);
-  logView(best, here, now);
-}
-function boardRow(ev, i, best, now){
-  const p = ev.pick[0], w = (p.board - now)/60000, d = Math.round((ev.arrive - best.arrive)/60000);
-  const pt = ev.pTransfer != null && ev.pTransfer < 0.8 ? ` · 轉乘 ${Math.round(ev.pTransfer*100)}%` : "";
-  const via = ev.pick.length > 1 ? ` · 接 ${esc(routeLabel(ev.pick[1].a))} ${hm(new Date(ev.pick[1].board))}` : "";
-  const right = ev === best ? `<span class="tag">最快</span>` : d <= 0 ? `<small>一樣快</small>` : `<small>+${d} 分</small>`;
-  return `<button class="row" type="button" data-open="${i}">
-    <span class="cdn">${w < 1 ? "進站" : Math.round(w) + "<small>分</small>"}</span>
-    <div class="l">${badgeRow(ev, true)}<span class="sub"><span class="dot ${p.live?"":"stat"}"></span> ${p.live?"即時":"統計"}${via}${pt}${ev.o.habit ? " · 習慣" : ""}</span></div>
-    <div class="r"><b>${hm(ev.arrive)}</b>${right}</div></button>`;
-}
-function board(now, best){ // at-stop board: one row per route that stops here (its fastest onward plan) + my usual plan
-  const t = tripObj(), here = currentHere(t), seen = new Set(), list = [];
-  for (const ev of ranked){
-    const k = ev.pick[0] ? routeLabel(ev.pick[0].a) : "walk";
-    if (!seen.has(k)){ seen.add(k); list.push(ev); }
-    else if (ev.o.habit && !list.some(x => x.o.habit)) list.push(ev);   // keep my usual plan visible even if slower
-  }
-  list.sort((a, b) => ranked.indexOf(a) - ranked.indexOf(b));
-  let top = list.slice(0, 5), more = list.slice(5);
-  const hab = more.find(ev => ev.o.habit);   // my usual route always stays on the first screen
-  if (hab){ more = more.filter(ev => ev !== hab).concat(top.slice(4)); top = top.slice(0, 4).concat([hab]); }
-  // routes that stop here but have no bus now (not yet departed / finished / no service)
-  const all = new Set(fromHere(t.options, here).map(o => routeLabel(o.legs[0].alts[0])));
-  const idle = [...all].filter(r => !seen.has(r));
-  // rows that end on the very same last bus arrive together: say so, so equal times don't look like an error
-  const lastBus = ev => ev.pick.length > 1 ? routeLabel(ev.pick.at(-1).a) + "|" + Math.round(ev.pick.at(-1).board/60000) : null;
-  const k0 = lastBus(best), same = k0 ? top.filter(ev => lastBus(ev) === k0).length : 0;
-  const tie = same > 1 ? `<div class="note">這 ${same} 班都接同一班 ${esc(routeLabel(best.pick.at(-1).a))}（${hm(new Date(best.pick.at(-1).board))}），所以一樣 ${hm(best.arrive)} 到；搭最先來的就好</div>` : "";
-  const rest = more.length || idle.length ? `<details class="all" style="margin-top:6px"><summary>▾ 其他 ${more.length + idle.length} 條路線</summary><div class="rows">
-    ${more.map(ev => boardRow(ev, ranked.indexOf(ev), best, now)).join("")}
-    ${idle.map(r => `<div class="row" style="cursor:default"><div class="l"><span class="sub">${esc(r)}：現在沒有車（未發車或末班已過）</span></div></div>`).join("")}</div></details>` : "";
-  return `<div class="rows" style="margin-top:8px">${top.map(ev => boardRow(ev, ranked.indexOf(ev), best, now)).join("")}</div>${tie}${rest}${earlyNote(best, now, true)}`;
-}
-function timeline(ev, i, best, now){
-  const items = [];
-  if (!ev.o.legs.length) items.push(`<li><time>${hm(now)}</time>走路 ${mins(ev.o.walk_after_s)} 分</li>`);
-  ev.pick.forEach((p, n) => {
-    const lg = ev.o.legs[n], hint = lg.hint || [];
-    if (p.walk >= 30) items.push(`<li><time>${hm(new Date(n ? ev.pick[n-1].arr : +ev.leave))}</time>走 ${mins(p.walk)} 分到 ${esc(lg.from_name)}${hint[0] ? `<span class="hint">${hint[0]} 號出口進站</span>` : ""}</li>`);
-    const pt = n === 1 && ev.pTransfer != null && ev.pTransfer < 0.8 ? `<span class="hint warn">轉乘趕上機率 ${Math.round(ev.pTransfer*100)}%</span>` : "";
-    const car = hint[2] ? `<span class="hint">${esc(hint[2])}</span>` : "";
-    items.push(`<li class="ride" style="--c:${legColor(p.a)}"><time>${hm(new Date(p.board))}</time>${badge(p.a)} ${esc(lg.from_name)} → ${esc(lg.to_name)}
-      <span class="hint">${p.live ? "即時" : "約"} · 車程約 ${mins(p.arr - p.board > 0 ? (p.arr-p.board)/1000 : 0)} 分</span>${car}${pt}</li>`);
-    if (hint[1]) items.push(`<li><time>${hm(new Date(p.arr))}</time>${hint[1]} 號出口出站</li>`);
-  });
-  if (ev.o.legs.length) items.push(`<li><time>${hm(ev.arrive)}</time>到${ev.o.walk_after_s >= 30 ? `（下車走 ${mins(ev.o.walk_after_s)} 分）` : ""}</li>`);
-  const d = Math.round((ev.arrive - best.arrive)/60000);
-  return `<div class="opt" id="opt-${i}"><div class="hd">${badgeRow(ev)}<span class="note" style="margin:0;white-space:nowrap">${i===0?"最快":"+"+Math.max(0,d)+" 分"}${ev.o.fare != null ? " · NT$"+ev.o.fare : ""}${ev.o.habit ? " · 習慣" : ""}</span></div><ol class="tl">${items.join("")}</ol></div>`;
+  const html = U.lock ? renderS6() : U.view === "s2" ? renderS2() : U.view === "s3" ? renderS3() : U.view === "s5" ? renderS5() : renderS1();
+  const a = document.activeElement, fid = a && a.id, pos = a && a.selectionStart;
+  $("app").innerHTML = html;
+  if (fid && $(fid)){ const el = $(fid); el.focus(); try{ if (pos != null) el.setSelectionRange(pos, pos); }catch(e){} }
+  if (LINT) lintDump();
 }
 
-// ---- C5: TPASS check and "minutes saved" (local-only counts on this phone; nothing is sent anywhere)
-function workdays(d){ // weekdays this month minus Taiwan days off, plus make-up workdays (from the fragment)
-  const y = d.getFullYear(), m = d.getMonth(), last = new Date(y, m+1, 0).getDate(), hd = (IT.hd || {})[String(y)] || [[], []];
-  let n = 0;
-  for (let i = 1; i <= last; i++){ const w = new Date(y, m, i).getDay(), k = pad(m+1) + pad(i);
-    if ((w && w < 6 && !hd[0].includes(k)) || hd[1].includes(k)) n++; }
-  return n;
+// ---- navigation (pushState so the phone's back gesture works; buttons for the home-screen app)
+function go(view, extra){ Object.assign(U, extra || {}); U.view = view; try{ history.pushState({view}, ""); }catch(e){} if (view === "s5") setTimeout(() => { const el = $("in-" + U.field); if (el && !DEMO) el.focus(); }, 0); render(); scrollTo(0, 0); }
+window.addEventListener("popstate", () => { U.view = (history.state && history.state.view) || "s1"; render(); });
+function back(){ if (history.state && history.state.view && history.state.view !== "s1") history.back(); else { U.view = "s1"; render(); } }
+function lockEv(ev){ U.lock = saveLock(store, makeLock(ev, U.q, +nowD())); U.missSel = 0; U.view = "s6"; render(); scrollTo(0, 0); }
+function pick(name){
+  if (U.field === "time") U.field = "to";
+  U.q = {...U.q, [U.field]: name}; U.text = "";
+  if (U.field === "to"){ const r = sjson("cm_recent", []).filter(n => n !== name); r.unshift(name); sput("cm_recent", r.slice(0, 5)); }
+  U.field = U.field === "from" ? "to" : U.field;
+  render();
 }
-function habitFare(id){ const t = IT.trips.find(x => x.id === id); const o = t && (t.options.find(x => x.habit) || t.options[0]); return o && o.fare != null ? o.fare : null; }
-function tpassLine(now){
-  const a = habitFare("1"), b = habitFare("2"); if (a == null || b == null) return "";
-  const wd = workdays(now), est = wd * (a + b), log = monthLog(now);
-  const extra = log.fare && log.rides ? `；這支手機本月記到 ${log.rides} 趟 NT$${log.fare}` : "";
-  const verdict = est > TPASS ? `買 TPASS 省 NT$${est - TPASS}` : est === TPASS ? "打平，多搭幾趟就划算" : `不買，刷卡省 NT$${TPASS - est}`;
-  return `TPASS ${TPASS}：本月上班日 ${wd} 天（已扣國定假日） × 來回 NT$${a + b} ≈ NT$${est.toLocaleString()} → ${verdict}${extra}`;
-}
-function monthKey(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1); }
-function monthLog(d){ const all = store.json("cm_log", {}); return all[monthKey(d)] || {opens:0, differ:0, predSaved:0, followed:0, saved:0, misses:0, rides:0, fare:0}; }
-function putMonth(d, m){ const all = store.json("cm_log", {}); all[monthKey(d)] = m; store.put("cm_log", all); }
-function logView(best, here, now){
-  // one count per trip per 20 minutes: what the page recommended vs my usual route (config include[0])
-  const k = "cm_last_" + trip, last = +store.get(k) || 0;
-  const m = monthLog(now), gain = habitEv ? Math.max(0, Math.round((habitEv.arrive - best.arrive)/60000)) : 0;
-  if (Date.now() - last > 20*60*1000){
-    store.set(k, String(Date.now())); store.set(k + "_pick", "");
-    m.opens++; if (gain >= 1){ m.differ++; m.predSaved += Math.min(gain, 30); }
-    putMonth(now, m);
-  }
-  // I'm standing at a boarding stop of the recommendation (board opened): count it once as followed
-  if (here && store.get(k + "_pick") !== "1" && best.o.legs.length){
-    store.set(k + "_pick", "1");
-    m.followed++; m.saved += Math.min(30, gain); m.rides++; m.fare += best.o.fare || 0;
-    putMonth(now, m);
-  }
-}
-function shareText(now){
-  const m = monthLog(now);
-  return `通勤頁回報 ${monthKey(now)}（只有次數，沒有地點）：打開 ${m.opens} 次；建議和習慣路線不同 ${m.differ} 次，預估可省 ${m.predSaved} 分；` +
-    `到站照建議搭 ${m.followed} 次，估計省 ${m.saved} 分；按「錯過這班」${m.misses} 次；記到 ${m.rides} 趟 NT$${m.fare}。`;
-}
-async function share(){
-  const text = shareText(new Date());
-  try{ if (navigator.share){ await navigator.share({text}); return; } }catch(e){ if (e && e.name === "AbortError") return; }
-  try{ await navigator.clipboard.writeText(text); toast("已複製，貼給顧問就好"); }catch(e){ toast(text); }
-}
-
-let footOpen = false;
-function renderFoot(now){
-  const m = monthLog(now), tp = tpassLine(now);
-  const dot = LIVE ? `<span class="dot"></span>即時 ${hm(LIVE.at)}` : `<span class="dot stat"></span>統計（即時抓不到）`;
-  const stops = boardStops(tripObj()), here = currentHere(tripObj());
-  $("foot").innerHTML = `${tp ? `<div>${tp}</div>` : ""}
-    <button type="button" data-act="foot" aria-expanded="${footOpen}">${dot}</button>
-    ${footOpen ? `<div class="more">
-      <div>${H.n_rides ? `車程用 ${H.n_rides} 趟實測 p75（${(H.generated||"").slice(5,10)}）` : "車程用路網估計"}；路線 ${(IT.generated||"").slice(0,10)}${LIVE ? `；即時下載 ${LIVE.ms} ms` : ""}</div>
-      <div>這個月：打開 ${m.opens} 次，照建議 ${m.followed} 次，估計省 ${m.saved} 分（只存在這支手機）</div>
-      <button class="share" type="button" data-act="share">複製回報給顧問</button>
-      <div>在別站上車？</div><div class="stops">
-        <button type="button" data-here="" aria-pressed="${!here}">出發地</button>
-        ${stops.map(s => `<button type="button" data-here="${esc(s)}" aria-pressed="${s === here}">${esc(s)}</button>`).join("")}
-        ${IT.stops && navigator.geolocation && geoState !== "granted" && geoState !== "denied" ? `<button type="button" data-act="locate">用定位找站</button>` : ""}
-      </div></div>` : ""}`;
-}
-function renderTrips(){
-  const el = $("trips");
-  el.innerHTML = IT.trips.map(t => `<button type="button" id="trip-${t.id}" data-trip="${t.id}" class="${t.priority > 1 ? "extra" : ""}" aria-pressed="${t.id === trip}">${esc(t.label)}</button>`).join("");
-}
-
-let tt = null;
-function toast(msg){ const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(tt); tt = setTimeout(()=>el.hidden = true, 3000); }
 document.addEventListener("click", e => {
-  const b = e.target.closest("button"); if (!b || !IT) return;
-  if (b.dataset.trip){ trip = b.dataset.trip; store.set("trip", trip); store.set("tripAt", String(Date.now())); render(); return; }
-  if (b.dataset.here !== undefined){ setHere(b.dataset.here); return; }
-  if (b.dataset.open !== undefined){ $("all").open = true; const el = $("opt-" + b.dataset.open); if (el) el.scrollIntoView({behavior:"smooth", block:"start"}); return; }
-  const act = b.dataset.act;
-  if (act === "home") setHere("");
-  else if (act === "miss"){
-    const p = ranked[0] && ranked[0].pick[0]; if (!p) return;
-    store.put("missed", missed().concat([{k: p.a.rid+"|"+p.a.from, board: p.board, at: Date.now()}]));
-    const m = monthLog(new Date()); m.misses++; putMonth(new Date(), m); render();
+  const t = e.target.closest("[data-act],[data-lock],[data-open],[data-stop],[data-sort],[data-go],[data-pick],[data-mode],[data-miss],[data-board]");
+  if (!t || !S.IT) return;
+  const d = t.dataset;
+  if (d.stop !== undefined){ e.preventDefault(); e.stopPropagation(); go("s3", {stop: d.stop}); return; }
+  if (d.lock !== undefined){ e.stopPropagation(); const ev = LAST.evs[+d.lock]; if (ev) lockEv(ev); return; }
+  if (d.open !== undefined){ const ev = LAST.evs[+d.open]; if (ev) go("s2", {sel: ev.o, excl: null}); return; }
+  if (d.board !== undefined){ const ev = S3ROWS[+d.board]; if (ev) go("s2", {sel: ev.o, excl: null, q: {...U.q, from: ev.o.origin}}); return; }
+  if (d.sort){ U.sort = d.sort; render(); return; }
+  if (d.go){ go(d.go, {field: d.f || (d.go === "s5" ? "time" : U.field), text: ""}); return; }
+  if (d.pick !== undefined){ pick(d.pick); return; }
+  if (d.mode){ U.q = {...U.q, mode: d.mode, time: d.mode === "first" || d.mode === "last" ? null : U.q.time}; render(); return; }
+  if (d.miss !== undefined){ U.missSel = +d.miss; render(); return; }
+  const act = d.act, now = +nowD();
+  if (act === "swap"){ U.q = {...U.q, from: U.q.to, to: U.q.from}; if (U.view !== "s5") setQuery(U.q); render(); }
+  else if (act === "clear"){ U.text = ""; render(); }
+  else if (act === "back") back();
+  else if (act === "reload") refresh(true);
+  else if (act === "search"){
+    const tv = $("in-time") && $("in-time").value, typed = U.text.trim();
+    if (typed){ const known = savedPlaces().includes(typed) || stopPlaces().some(s => s.name === typed); if (!known){ render(); return; } pick(typed); }
+    const q = {...U.q, time: U.q.mode === "first" || U.q.mode === "last" ? null : (tv && tv !== hm(nowD()) ? tv : (U.q.mode === "arr" ? tv : null))};
+    setQuery(q); U.excl = null; U.view = "s1"; try{ history.pushState({view: "s1"}, ""); }catch(e){} render();
   }
-  else if (act === "unmiss"){ store.put("missed", []); render(); }
-  else if (act === "foot"){ footOpen = !footOpen; renderFoot(new Date()); }
-  else if (act === "share") share();
-  else if (act === "locate") locate(true);
+  else if (act === "lock"){ const ev = currentEv(); if (ev) lockEv(ev); }
+  else if (act === "later"){ const ev = currentEv(); if (ev && ev.pick[0]){ U.excl = {...(U.excl || {}), [akey(ev.pick[0].a)]: ev.pick[0].board + MIN}; render(); } }
+  else if (act === "end"){ U.lock = endLock(store); U.view = "s1"; U.excl = null; try{ history.replaceState({view: "s1"}, ""); }catch(e){} render(); }
+  else if (act === "next"){ saveLock(store, relockNext(U.lock, now)); render(); }
+  else if (act === "switch"){ const ev = MISSED[Math.min(U.missSel, MISSED.length - 1)]; if (ev){ U.lock = saveLock(store, relockTo(U.lock, ev, now)); U.missSel = 0; render(); } }
 });
+document.addEventListener("keydown", e => { if ((e.key === "Enter" || e.key === " ") && e.target.matches("[role=button]")){ e.preventDefault(); e.target.click(); } });
+document.addEventListener("change", e => { if (e.target.id === "in-time" && $("tv")) $("tv").textContent = e.target.value; });
+document.addEventListener("input", e => { const k = e.target.dataset && e.target.dataset.in; if (k){ U.field = k; U.text = e.target.value; render(); } });
+document.addEventListener("focusin", e => { const k = e.target.dataset && e.target.dataset.in; if (k && U.field !== k){ U.field = k; U.text = ""; render(); } });
 
-// ---- data: URL fragment #d=<deflate-raw JSON, base64url> (never sent to the server), else files next to the page
+// ---- live ETAs (Taipei open data, CORS *, no key). Offline keeps the last result (this phone only).
+const LIVE_URL = "https://tcgbusfs.blob.core.windows.net/blobbus/GetEstimateTime.gz";
+function myKeys(){ const k = new Set(); for (const t of S.IT.trips) for (const o of t.options) for (const lg of o.legs) for (const a of lg.alts) if (!isMrt(a)) k.add(akey(a)); return k; }
+async function loadLive(){
+  if (DEMO) return;
+  if (navigator.onLine === false){ U.net = "offline"; return; }
+  try{
+    const r = await fetch(LIVE_URL, {cache: "no-store"});
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await new Response(r.body.pipeThrough(new DecompressionStream("gzip"))).json();
+    const m = new Map(), mine = myKeys(), keep = {};
+    for (const e of j.BusInfo){ const k = e.RouteID + "|" + e.StopID; m.set(k, +e.EstimateTime); if (mine.has(k)) keep[k] = +e.EstimateTime; }
+    const [ds, ts] = j.EssentialInfo.UpdateTime.split(" ");
+    S.LIVE = {map: m, at: +new Date(ds.replace(/\//g, "-") + "T" + ts + "+08:00")};
+    U.net = "ok"; sput("cm_live", {at: S.LIVE.at, m: keep});
+  }catch(e){
+    U.net = navigator.onLine === false || e instanceof TypeError ? "offline" : "fail";
+    if (!S.LIVE){ const c = sjson("cm_live", null); if (c && Date.now() - c.at < 15*MIN) S.LIVE = {map: new Map(Object.entries(c.m)), at: c.at}; }
+  }
+}
+async function refresh(){ await loadLive(); render(); }
+
+// ---- data: URL fragment #d=<deflate-raw JSON, base64url> (never sent to the server)
 async function fromFragment(){
   const m = location.hash.match(/^#d=([A-Za-z0-9_-]+)/);
   if (!m) return null;
-  const b64 = m[1].replace(/-/g,"+").replace(/_/g,"/");
+  const b64 = m[1].replace(/-/g, "+").replace(/_/g, "/");
   const bin = Uint8Array.from(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
   const j = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).json();
-  const routes = {}; for (const [rid, v] of Object.entries(j.r)) routes[rid] = {name:v[0], nid:v[1]};
+  return expand(j);
+}
+function expand(j){
+  const dn = j.dn || [], routes = {};
+  for (const [rid, v] of Object.entries(j.r)) routes[rid] = {name: v[0], nid: v[1], first: v[2] || "", last: v[3] || ""};
   const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs, fare, habit]) => ({
     id: oid, walk_after_s: wa, fare: fare == null ? null : fare, habit: !!habit, legs: legs.map(([fn, tn, alts, hint]) => ({from_name: fn, to_name: tn, hint: hint || null,
-      alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s, lines]) => ({rid, from, to, ride_s, walk_before_s, headway_s, lines: lines || ""}))}))}))}));
-  return [{generated: j.g, routes, trips, stops: j.s || null, hd: j.hd || null}, j.h || null];
+      alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s, lines, di, ns]) => ({rid, from, to, ride_s, walk_before_s, headway_s, lines: lines || "", dir: di != null && di >= 0 ? dn[di] : "", ns: ns || 0}))}))}))}));
+  const h = j.h ? {...j.h, e: j.h.e || {}} : null;
+  return [{generated: j.g, routes, trips, stops: j.s || null}, h];
 }
-function fromFiles(it){ // itineraries.json shape -> page shape
-  for (const t of it.trips) for (const o of t.options){
-    o.habit = !!o.habit; o.fare = o.fare == null ? null : o.fare;
-    for (const lg of o.legs){ lg.hint = lg.exit_in || lg.exit_out || lg.car ? [lg.exit_in||"", lg.exit_out||"", lg.car||""] : null;
-      for (const a of lg.alts) a.lines = (a.lines || []).map(x => x[0]).join(""); }
+
+// ---- demo fixtures (?demo=<state>&now=HH:MM): demo.json next to the page, never published
+async function loadDemo(){
+  const P = new URLSearchParams(location.search), all = await fetch("demo.json").then(r => r.json());
+  const st = all.states[DEMO]; if (!st) throw new Error("no demo state " + DEMO);
+  const base = new Date(2026, 9, 29, 0, 0, 0);
+  S.clock = atClock(P.get("now") || st.now, base);
+  const [IT, h] = expand(all.data);
+  S.IT = IT; if (h) S.H = Object.assign(S.H, h);
+  if (st.live){ const at = st.liveAt ? atClock(st.liveAt, base) : S.clock, m = new Map();
+    for (const [k, v] of Object.entries(st.live)) m.set(k, typeof v === "number" ? v : Math.round((atClock(v, base) - at)/1000));
+    S.LIVE = {map: m, at}; }
+  U.net = st.net || "ok";
+  U.q = st.q || {from: "住家", to: "公司", mode: "dep", time: null};
+  if (st.recent) sput("cm_recent", st.recent);
+  if (st.sort) U.sort = st.sort;
+  if (st.lock){ const o = findOptions(U.q.from, U.q.to).find(x => x.id === st.lock.opt);
+    const alts = st.lock.alts || [];
+    const lo = {...o, legs: o.legs.map((lg, n) => ({...lg, alts: [lg.alts.find(a => routeLabel(a) === alts[n]) || lg.alts[0]]}))};
+    U.lock = {v: 1, q: U.q, o: lo, T: st.lock.T.map(x => atClock(x, base)), live: lo.legs.map(() => true), passed: lo.legs.map(() => false), start: atClock(st.lock.start, base), at: atClock(st.lock.start, base)};
   }
-  return it;
+  if (st.view === "s2"){ U.sel = findOptions(U.q.from, U.q.to).find(x => x.id === st.sel); U.view = "s2"; }
+  if (st.view === "s3"){ U.stop = st.stop; U.view = "s3"; }
+  if (st.view === "s5"){ U.view = "s5"; U.field = st.field || "to"; U.text = st.text || ""; }
+  if (st.loading){ S.IT = null; return; }
 }
+const LINT = new URLSearchParams(location.search).has("lint");
+function lintDump(){ // layout facts for tools/ui_lint.py (headless Chrome --dump-dom)
+  requestAnimationFrame(() => {
+    const app = $("app"), lines = new Map(), tw = document.createTreeWalker(app, NodeFilter.SHOW_TEXT);
+    for (let n = tw.nextNode(); n; n = tw.nextNode()){
+      const t = n.textContent.trim(); if (!t) continue;
+      const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); if (!b.height) continue;
+      const y = Math.round((b.top + b.bottom) / 2 / 8), exempt = !!n.parentElement.closest(".field");
+      const cur = lines.get(y) || {text: [], exempt: false, x: []}; cur.text.push([b.left, t]); cur.exempt = cur.exempt || exempt; lines.set(y, cur);
+    }
+    const out = {width: innerWidth, scrollWidth: document.documentElement.scrollWidth, height: Math.ceil(app.getBoundingClientRect().bottom + 24),
+      lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => ({text: v.text.sort((a, b) => a[0] - b[0]).map(x => x[1]).join(" "), exempt: v.exempt})),
+      buttons: [...app.querySelectorAll("button, a.btn:not([data-stop])")].map(b => ({text: b.textContent.trim(), label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height)})),
+      taps: [...app.querySelectorAll("[role=button], a.lk, a[data-stop], label.field")].map(b => ({text: b.textContent.trim().slice(0, 20), h: Math.round(b.getBoundingClientRect().height), hit: b.matches("a.lk") ? Math.round(parseFloat(getComputedStyle(b).paddingTop) * 2 + b.getBoundingClientRect().height) : null})),
+      places: S.IT ? [...savedPlaces(), ...stopPlaces().map(s => s.name)] : []};
+    let el = document.getElementById("lint-out"); if (!el){ el = document.createElement("script"); el.type = "application/json"; el.id = "lint-out"; document.body.appendChild(el); }
+    el.textContent = JSON.stringify(out);
+    if (parent !== window) parent.postMessage({lint: out}, "*");   // shots.py harness (Chrome's window is >= 500 px)
+  });
+}
+
 async function boot(){
-  trip = defaultTrip();
-  const [data] = await Promise.all([
-    fromFragment().then(d => d || Promise.all([
-      fetch("itineraries.json").then(r => { if (!r.ok) throw new Error("no data"); return r.json(); }).then(fromFiles),
-      fetch("history.json").then(r => r.ok ? r.json() : null).then(h => h && h.eta_error ? Object.assign(h, {e: Object.fromEntries(Object.entries(h.eta_error).map(([k,v]) => [k, [v.bias, v.p10, v.n]]))}) : h).catch(() => null)])),
-    loadLive()
-  ]);
-  IT = data[0]; if (data[1]) H = Object.assign(H, data[1]);
-  render(); autoLocate();
-  setInterval(() => { if (!document.hidden) render(); }, 15000);                         // countdown
-  setInterval(async () => { if (!document.hidden){ await loadLive(); render(); } }, 30000); // live ETAs
-  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ autoLocate(); await loadLive(); render(); } });
+  if (DEMO){ await loadDemo(); if (!S.IT){ if (LINT) lintDump(); return; } U.lock = U.lock || null; render(); return; }
+  const data = await fromFragment();   // a few ms; the live feed needs the route list to cache my stops
+  if (!data){ $("app").innerHTML = `<div class="err"><span>沒有路線資料｜用書籤網址開</span></div>`; return; }
+  S.IT = data[0]; if (data[1]) S.H = Object.assign(S.H, data[1]);
+  await loadLive();
+  U.q = defaultQuery();
+  U.lock = loadLock(store, +nowD());
+  try{ history.replaceState({view: "s1"}, ""); }catch(e){}
+  render(); autoStop();
+  setInterval(() => { if (!document.hidden) render(); }, 15000);
+  setInterval(() => { if (!document.hidden) refresh(); }, 30000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+  addEventListener("resize", () => render());
+  addEventListener("online", refresh); addEventListener("offline", () => { U.net = "offline"; render(); });
 }
-boot().catch(() => { $("hero").innerHTML = location.hash ? `<div class="ctx">路線資料載入失敗，重新整理試試</div>`
-  : `<div class="ctx">這頁需要書籤網址（# 後面帶著你的路線）才會有內容</div>`; });
+// at a boarding stop (within 150 m, location already allowed, nothing locked): open its board (S3). Never prompts.
+async function autoStop(){
+  if (!S.IT.stops || !navigator.geolocation || !navigator.permissions) return;
+  try{ const p = await navigator.permissions.query({name: "geolocation"}); if (p.state !== "granted") return; }catch(e){ return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (U.lock || U.view !== "s1") return;
+    const {latitude: la, longitude: lo} = pos.coords; let best = null;
+    for (const o of findOptions(U.q.from, U.q.to)) for (const lg of o.legs.slice(0, 1)){ const p = S.IT.stops[lg.from_name]; if (!p) continue;
+      const d = Math.hypot((la-p[0])*111000, (lo-p[1])*111000*Math.cos(la*Math.PI/180)); if (!best || d < best.d) best = {n: lg.from_name, d}; }
+    if (best && best.d <= 150) go("s3", {stop: best.n});
+  }, () => {}, {maximumAge: 60000, timeout: 8000, enableHighAccuracy: true});
+}
+boot().catch(err => { $("app").innerHTML = `<div class="err"><span>載入失敗｜重新整理</span><button type="button" class="btn" data-act="hardreload" onclick="location.reload()">重新整理</button></div>`; if (DEMO) console.error(err); });
 })();
 </script>
 
