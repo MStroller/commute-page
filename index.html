@@ -139,11 +139,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 /* timeline: time | rail | content (norikae style) */
 .tl{margin-top:var(--s3)}
 .st,.sg{display:grid;grid-template-columns:var(--tl-time) var(--tl-rail) 1fr;column-gap:var(--s1)}
-.st{min-height:32px;align-items:center}
-.st .tm{font-size:var(--fs-17);font-weight:var(--fw-bold)}
-.st .dot{width:var(--dot);height:var(--dot);border-radius:50%;border:3px solid var(--line-strong);background:var(--surface);justify-self:center}
+/* a stop name that wraps: time and dot line up with its first line, not the middle of the block */
+.st{min-height:32px;align-items:start}
+.st .tm{font-size:var(--fs-17);font-weight:var(--fw-bold);min-height:32px;display:flex;align-items:center}
+.st .dot{width:var(--dot);height:var(--dot);border-radius:50%;border:3px solid var(--line-strong);background:var(--surface);justify-self:center;margin-top:var(--s2)}
 .st .dot.end{background:var(--line-strong)}
-.st .nm{font-size:var(--fs-17);font-weight:var(--fw-bold);display:flex;justify-content:space-between;align-items:center;gap:var(--s2);min-width:0}
+.st .nm{font-size:var(--fs-17);font-weight:var(--fw-bold);display:flex;justify-content:space-between;align-items:center;gap:var(--s2);min-width:0;min-height:32px}
+.st .nm .n{padding:var(--s1) var(--s0)}
 .st .nm .n{min-width:0;overflow-wrap:anywhere}
 .st .nm .r{flex:none;font-size:var(--fs-13);font-weight:var(--fw-regular);color:var(--ink-2)}
 .sg{min-height:52px}
@@ -156,9 +158,18 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 .err .btn{background:var(--surface);border-color:var(--ink-3)}
 .foot{display:flex;gap:var(--s2);margin-top:var(--s3)}
 .sk{background:var(--skeleton);border-radius:var(--r-btn)}
-.sk.f{height:var(--tap);margin-top:var(--s1)} .sk.s{height:var(--tap);margin-top:var(--s2)} .sk.c{height:132px;margin-top:var(--s2);border-radius:var(--r-card)}
+.sk.f{height:calc(var(--tap) + var(--s3));margin-top:var(--s1)} .sk.s{height:var(--tap);margin-top:var(--s2)} .sk.c{height:132px;margin-top:var(--s2);border-radius:var(--r-card)}
 .next .row{flex-wrap:wrap}
 .next .cdn{margin-left:auto}
+/* narrow screens: when route + stop + countdown do not fit one line, the countdown stays beside the route
+   badge and the stop name takes the next line whole (fit() measures; the name is never cut) */
+.next .row.fold .nmx{order:2;flex-basis:100%}
+/* "下一班 HH:MM stop": the time never leaves its label; a stop name that cannot follow on the same line
+   breaks inside instead of dropping whole to the next line (fit() adds .brk) */
+.brk{word-break:normal}
+/* S1 query: one compact field (出發地 → 目的地 / 時間 + data status); tap = S5 to change them */
+.qs{padding:var(--s1) var(--s3)}
+.qs .col{gap:var(--s0)}
 .u{display:inline-block;max-width:100%}
 .sep{margin:var(--s0) var(--s1)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
@@ -166,7 +177,7 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 
 </head>
 <body>
-<main><div id="app" aria-live="polite"><div class="sk f"></div><div class="sk f"></div><div class="sk f"></div><div class="sk s"></div><div class="sk c"></div><div class="sk c"></div><div class="sk c"></div></div></main>
+<main><div id="app" aria-live="polite"><div class="sk f"></div><div class="sk s"></div><div class="sk c"></div><div class="sk c"></div><div class="sk c"></div></div></main>
 
 <script>
 (() => {
@@ -488,6 +499,12 @@ function fieldsHtml(focus){
     : `<div class="field" role="button" tabindex="0" data-go="s5" data-f="${k}"><span class="lb">${lb}</span><span class="v t17 b">${esc(q[k])}</span></div>`;
   return `<div class="row"><div class="col grow">${f("from", "出發地")}${f("to", "目的地")}</div><button type="button" class="btn" data-act="swap" aria-label="對調">⇅</button></div>`;
 }
+function queryBar(){   // S1: the whole query in one field (UI規範 三之一: nothing hidden, only compacted)
+  const q = U.q;
+  return `<div class="row"><div class="field grow qs" role="button" tabindex="0" data-go="s5" data-f="to" aria-label="出發地 ${esc(q.from)}，目的地 ${esc(q.to)}，${timeLabel()}">
+    <span class="col grow"><span class="t17 b">${esc(q.from)} → ${esc(q.to)}</span><span class="row sp"><span class="t13 g nw">${timeLabel()}</span>${statusTag()}</span></span></div>
+    <button type="button" class="btn" data-act="swap" aria-label="對調">⇅</button></div>`;
+}
 function timeLabel(){
   const q = U.q;
   return q.mode === "first" ? "首班" : q.mode === "last" ? "末班" : q.mode === "arr" ? `抵達 ${q.time}` : q.time ? `出發 ${q.time}` : `現在 ${hm(nowD())}`;
@@ -520,8 +537,7 @@ function renderS1(){
     err += `<div class="err"><span>${what}｜${u(esc(g.o.legs[0].from_name) + " " + esc(routeLabel(a)))}</span>${mrt >= 0 ? `<button type="button" class="btn" data-open="${mrt}">改搭捷運</button>` : `<button type="button" class="btn" data-go="s5">改時間</button>`}</div>`;
   }
   if (!r.evs.length) err += !r.opts.length ? noRoute() : `<div class="err"><span>查無班次</span><button type="button" class="btn" data-go="s5">改時間</button></div>`;
-  return `${fieldsHtml(null)}
-    <div class="row sp mt2"><div class="field grow" role="button" tabindex="0" data-go="s5" data-f="time"><span class="lb">出發時間</span><span class="v t15">${timeLabel()}</span></div>${statusTag()}</div>
+  return `${queryBar()}
     <div class="seg mt2" role="tablist">${seg}</div>
     ${banners(r.evs)}${err}
     ${r.evs.slice(0, 3).map(card).join("")}`;
@@ -583,7 +599,7 @@ function renderS2(){
   const ev = currentEv();
   if (!ev) return backBtn() + `<div class="err"><span>查無班次</span><button type="button" class="btn" data-act="back">返回</button></div>`;
   const now = +nowD();
-  const nextDep = s => { const c = legChoice({...s.a, walk_before_s: 0}, s.board - MIN, {[akey(s.a)]: s.board + MIN}); return c.none == null ? `<span>下一班 ${u(hm(c.board) + " " + esc(s.lg.from_name))}</span>` : ""; };
+  const nextDep = s => { const c = legChoice({...s.a, walk_before_s: 0}, s.board - MIN, {[akey(s.a)]: s.board + MIN}); return c.none == null ? `<span class="fitbrk"><span class="nw">下一班 ${hm(c.board)}</span> ${esc(s.lg.from_name)}</span>` : ""; };
   return `${backBtn()}
     <div class="t22">${hm(ev.leave)} ${esc(U.q.from)} → ${hm(ev.arrive)} ${esc(U.q.to)}</div>
     <div class="row sp mt1"><span class="t15">${dur(ev)} 分｜${ev.o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(ev.o)}</span>${ev.delay ? `<span class="tag warn">${esc(routeLabel(ev.pick[0].a))} 延誤 ${ev.delay} 分</span>` : statusTag()}</div>
@@ -659,7 +675,7 @@ function renderS6(){
     const w = (s.board - now)/MIN, walkLeft = minsUp(s.reach - now);
     const more = v.steps.some((x, k) => k >= v.leg && !x.passed);
     return `${head}
-      <div class="next"><div class="row">${chip(s.a)}<span class="t22">${esc(s.lg.from_name)}</span><span class="t28 nw cdn">${w < 1 ? "進站" : "到站 " + Math.round(w) + " 分"}</span></div>
+      <div class="next"><div class="row">${chip(s.a)}<span class="t22 nmx">${esc(s.lg.from_name)}</span><span class="t28 nw cdn">${w < 1 ? "進站" : "到站 " + Math.round(w) + " 分"}</span></div>
         <div class="t15 b mt1">${hm(s.board)}　${esc(s.lg.from_name)}　${s.live ? "即時" : "時刻表"}</div>
         <div class="t15 mt1">${walkLeft > 0 ? `步行 ${walkLeft} 分｜` : ""}趕上機率 ${Math.round(s.prob*100)}%</div>${arriveLine}</div>
       ${timeline(v.steps, {to, arrive: v.arrive, walkAfter: L.o.walk_after_s, startAt: v.leg, liveMarks: true})}
@@ -669,7 +685,7 @@ function renderS6(){
     const left = s.a.ns ? Math.max(1, Math.ceil(s.a.ns * (s.arr - now) / Math.max(1, s.arr - s.board))) : null;
     const nx = v.steps[v.leg + 1];
     return `${head}
-      <div class="next"><div class="row">${chip(s.a)}<span class="t22">${esc(s.lg.to_name)}</span><span class="t22">下車</span><span class="t28 nw cdn">${left ? `剩 ${left} 站` : `剩 ${minsUp(s.arr - now)} 分`}</span></div>
+      <div class="next"><div class="row">${chip(s.a)}<span class="t22 nmx">${esc(s.lg.to_name)}　下車</span><span class="t28 nw cdn">${left ? `剩 ${left} 站` : `剩 ${minsUp(s.arr - now)} 分`}</span></div>
         ${nx ? `<div class="t15 b mt1">轉乘 ${esc(routeLabel(nx.a))}｜${hm(nx.board)} ${esc(nx.lg.from_name)}${nx.prob != null ? `｜趕上機率 ${Math.round(nx.prob*100)}%` : ""}</div>` : ""}${arriveLine}</div>
       ${timeline(v.steps, {to, arrive: v.arrive, walkAfter: L.o.walk_after_s, startAt: v.leg, skipBoardOf: v.leg, liveMarks: true, liveArr: v.leg})}
       <div class="foot">${nx ? `<button type="button" class="btn wide" data-act="next">改下一班</button>` : ""}${end}</div>`;
@@ -692,8 +708,21 @@ function render(){
   const html = U.lock ? renderS6() : U.view === "s2" ? renderS2() : U.view === "s3" ? renderS3() : U.view === "s5" ? renderS5() : renderS1();
   const a = document.activeElement, fid = a && a.id, pos = a && a.selectionStart;
   $("app").innerHTML = html;
+  fit();
   if (fid && $(fid)){ const el = $(fid); el.focus(); try{ if (pos != null) el.setSelectionRange(pos, pos); }catch(e){} }
   if (LINT) lintDump();
+}
+
+function fit(){   // layout decisions that need the rendered width (narrow phones, long stop names)
+  const top = el => el.getBoundingClientRect().top;
+  for (const r of document.querySelectorAll(".next .row")){
+    const c = r.querySelector(".cdn"), f = r.firstElementChild;
+    if (c && f && top(c) > top(f) + 4) r.classList.add("fold");
+  }
+  for (const el of document.querySelectorAll(".fitbrk")){
+    const lh = parseFloat(getComputedStyle(el).lineHeight) || 20;
+    if (el.getBoundingClientRect().height > lh * 1.5) el.classList.add("brk");
+  }
 }
 
 // ---- navigation (pushState so the phone's back gesture works; buttons for the home-screen app)
@@ -816,8 +845,21 @@ function lintDump(){ // layout facts for tools/ui_lint.py (headless Chrome --dum
     for (let n = tw.nextNode(); n; n = tw.nextNode()){
       const t = n.textContent.trim(); if (!t) continue;
       const r = document.createRange(); r.selectNodeContents(n); const b = r.getBoundingClientRect(); if (!b.height) continue;
-      const y = Math.round((b.top + b.bottom) / 2 / 8), exempt = !!n.parentElement.closest(".field");
-      const cur = lines.get(y) || {text: [], exempt: false, x: []}; cur.text.push([b.left, t]); cur.exempt = cur.exempt || exempt; lines.set(y, cur);
+      const exempt = !!n.parentElement.closest(".field");
+      // a text node that wraps (a long stop name) counts at its middle (a time centred beside it) and on each
+      // visual line it occupies, with the part shown there (a time on its first line)
+      const parts = [{y: Math.round((b.top + b.bottom) / 2 / 8), x: b.left, t}];
+      if (r.getClientRects().length > 1){
+        const s = n.textContent; let cur = null;
+        for (let i = 0; i < s.length; i++){
+          const c = document.createRange(); c.setStart(n, i); c.setEnd(n, i + 1); const cb = c.getBoundingClientRect(); if (!cb.height) continue;
+          const y = Math.round((cb.top + cb.bottom) / 2 / 8);
+          if (!cur || cur.y !== y){ cur = {y, x: cb.left, t: ""}; parts.push(cur); }
+          cur.t += s[i];
+        }
+      }
+      for (const p of parts){ if (!p.t.trim()) continue;
+        const cur = lines.get(p.y) || {text: [], exempt: false, x: []}; cur.text.push([p.x, p.t.trim()]); cur.exempt = cur.exempt || exempt; lines.set(p.y, cur); }
     }
     const out = {width: innerWidth, scrollWidth: document.documentElement.scrollWidth, height: Math.ceil(app.getBoundingClientRect().bottom + 24),
       lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => ({text: v.text.sort((a, b) => a[0] - b[0]).map(x => x[1]).join(" "), exempt: v.exempt})),
