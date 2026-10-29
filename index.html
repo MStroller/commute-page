@@ -372,7 +372,12 @@ function render(){
     $("alts").innerHTML = ""; $("allList").innerHTML = ""; renderFoot(now); return;
   }
   const nx = best.o.legs.length ? nextAfter(best, now) : null;
-  const missBtn = nx ? `<button class="miss" type="button" data-act="miss">錯過這班 → 下一個 ${hm(nx.arrive)} 到${Math.round((nx.arrive-best.arrive)/60000) > 0 ? `（晚 ${Math.round((nx.arrive-best.arrive)/60000)} 分）` : ""}</button>` : "";
+  let missBtn = "";
+  if (nx){
+    const late = Math.round((nx.arrive - best.arrive)/60000), np = nx.pick[0];
+    const what = np ? `${esc(routeLabel(np.a))} ${hm(new Date(np.board))}` : "走路";
+    missBtn = `<button class="miss" type="button" data-act="miss">錯過這班 → 改搭 ${what}，${hm(nx.arrive)} 到${late > 0 ? `（晚 ${late} 分）` : "（一樣快）"}</button>`;
+  }
   if (here){
     hero.innerHTML = ctx + missHead + board(now, best) + missBtn;
   } else {
@@ -392,18 +397,38 @@ function render(){
   renderFoot(now);
   logView(best, here, now);
 }
-function board(now, best){ // at-stop board: one row per bus, countdown left, arrival right
-  const seen = new Set(), list = ranked.filter(ev => { // one row per bus at this stop (its fastest onward plan)
-    const k = ev.pick[0] ? routeLabel(ev.pick[0].a) : "walk"; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
-  const rows = list.map((ev) => { const i = ranked.indexOf(ev);
-    const p = ev.pick[0], w = (p.board - now)/60000;
-    const pt = ev.pTransfer != null && ev.pTransfer < 0.8 ? ` · 轉乘 ${Math.round(ev.pTransfer*100)}%` : "";
-    return `<button class="row" type="button" data-open="${i}">
-      <span class="cdn">${w < 1 ? "進站" : Math.round(w) + "<small>分</small>"}</span>
-      <div class="l">${badgeRow(ev, true)}<span class="sub"><span class="dot ${p.live?"":"stat"}"></span> ${p.live?"即時":"統計"}${pt}</span></div>
-      <div class="r"><b>${hm(ev.arrive)}</b>${i === 0 ? `<span class="tag">最快</span>` : `<small>+${Math.max(0, Math.round((ev.arrive-best.arrive)/60000))} 分</small>`}</div></button>`;
-  }).join("");
-  return `<div class="rows" style="margin-top:8px">${rows}</div>${earlyNote(best, now, true)}`;
+function boardRow(ev, i, best, now){
+  const p = ev.pick[0], w = (p.board - now)/60000, d = Math.round((ev.arrive - best.arrive)/60000);
+  const pt = ev.pTransfer != null && ev.pTransfer < 0.8 ? ` · 轉乘 ${Math.round(ev.pTransfer*100)}%` : "";
+  const via = ev.pick.length > 1 ? ` · 接 ${esc(routeLabel(ev.pick[1].a))} ${hm(new Date(ev.pick[1].board))}` : "";
+  const right = ev === best ? `<span class="tag">最快</span>` : d <= 0 ? `<small>一樣快</small>` : `<small>+${d} 分</small>`;
+  return `<button class="row" type="button" data-open="${i}">
+    <span class="cdn">${w < 1 ? "進站" : Math.round(w) + "<small>分</small>"}</span>
+    <div class="l">${badgeRow(ev, true)}<span class="sub"><span class="dot ${p.live?"":"stat"}"></span> ${p.live?"即時":"統計"}${via}${pt}${ev.o.habit ? " · 習慣" : ""}</span></div>
+    <div class="r"><b>${hm(ev.arrive)}</b>${right}</div></button>`;
+}
+function board(now, best){ // at-stop board: one row per route that stops here (its fastest onward plan) + my usual plan
+  const t = tripObj(), here = currentHere(t), seen = new Set(), list = [];
+  for (const ev of ranked){
+    const k = ev.pick[0] ? routeLabel(ev.pick[0].a) : "walk";
+    if (!seen.has(k)){ seen.add(k); list.push(ev); }
+    else if (ev.o.habit && !list.some(x => x.o.habit)) list.push(ev);   // keep my usual plan visible even if slower
+  }
+  list.sort((a, b) => ranked.indexOf(a) - ranked.indexOf(b));
+  let top = list.slice(0, 5), more = list.slice(5);
+  const hab = more.find(ev => ev.o.habit);   // my usual route always stays on the first screen
+  if (hab){ more = more.filter(ev => ev !== hab).concat(top.slice(4)); top = top.slice(0, 4).concat([hab]); }
+  // routes that stop here but have no bus now (not yet departed / finished / no service)
+  const all = new Set(fromHere(t.options, here).map(o => routeLabel(o.legs[0].alts[0])));
+  const idle = [...all].filter(r => !seen.has(r));
+  // rows that end on the very same last bus arrive together: say so, so equal times don't look like an error
+  const lastBus = ev => ev.pick.length > 1 ? routeLabel(ev.pick.at(-1).a) + "|" + Math.round(ev.pick.at(-1).board/60000) : null;
+  const k0 = lastBus(best), same = k0 ? top.filter(ev => lastBus(ev) === k0).length : 0;
+  const tie = same > 1 ? `<div class="note">這 ${same} 班都接同一班 ${esc(routeLabel(best.pick.at(-1).a))}（${hm(new Date(best.pick.at(-1).board))}），所以一樣 ${hm(best.arrive)} 到；搭最先來的就好</div>` : "";
+  const rest = more.length || idle.length ? `<details class="all" style="margin-top:6px"><summary>▾ 其他 ${more.length + idle.length} 條路線</summary><div class="rows">
+    ${more.map(ev => boardRow(ev, ranked.indexOf(ev), best, now)).join("")}
+    ${idle.map(r => `<div class="row" style="cursor:default"><div class="l"><span class="sub">${esc(r)}：現在沒有車（未發車或末班已過）</span></div></div>`).join("")}</div></details>` : "";
+  return `<div class="rows" style="margin-top:8px">${top.map(ev => boardRow(ev, ranked.indexOf(ev), best, now)).join("")}</div>${tie}${rest}${earlyNote(best, now, true)}`;
 }
 function timeline(ev, i, best, now){
   const items = [];
@@ -423,15 +448,20 @@ function timeline(ev, i, best, now){
 }
 
 // ---- C5: TPASS check and "minutes saved" (local-only counts on this phone; nothing is sent anywhere)
-function workdays(d){ let n = 0; const y = d.getFullYear(), m = d.getMonth(), last = new Date(y, m+1, 0).getDate();
-  for (let i = 1; i <= last; i++){ const w = new Date(y, m, i).getDay(); if (w && w < 6) n++; } return n; }
+function workdays(d){ // weekdays this month minus Taiwan days off, plus make-up workdays (from the fragment)
+  const y = d.getFullYear(), m = d.getMonth(), last = new Date(y, m+1, 0).getDate(), hd = (IT.hd || {})[String(y)] || [[], []];
+  let n = 0;
+  for (let i = 1; i <= last; i++){ const w = new Date(y, m, i).getDay(), k = pad(m+1) + pad(i);
+    if ((w && w < 6 && !hd[0].includes(k)) || hd[1].includes(k)) n++; }
+  return n;
+}
 function habitFare(id){ const t = IT.trips.find(x => x.id === id); const o = t && (t.options.find(x => x.habit) || t.options[0]); return o && o.fare != null ? o.fare : null; }
 function tpassLine(now){
   const a = habitFare("1"), b = habitFare("2"); if (a == null || b == null) return "";
   const wd = workdays(now), est = wd * (a + b), log = monthLog(now);
   const extra = log.fare && log.rides ? `；這支手機本月記到 ${log.rides} 趟 NT$${log.fare}` : "";
-  const verdict = est > TPASS ? `買 TPASS 省 NT$${est - TPASS}` : `不買，刷卡省 NT$${TPASS - est}`;
-  return `TPASS ${TPASS}：本月平日 ${wd} 天 × 來回 NT$${a + b} ≈ NT$${est.toLocaleString()} → ${verdict}${extra}`;
+  const verdict = est > TPASS ? `買 TPASS 省 NT$${est - TPASS}` : est === TPASS ? "打平，多搭幾趟就划算" : `不買，刷卡省 NT$${TPASS - est}`;
+  return `TPASS ${TPASS}：本月上班日 ${wd} 天（已扣國定假日） × 來回 NT$${a + b} ≈ NT$${est.toLocaleString()} → ${verdict}${extra}`;
 }
 function monthKey(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1); }
 function monthLog(d){ const all = store.json("cm_log", {}); return all[monthKey(d)] || {opens:0, differ:0, predSaved:0, followed:0, saved:0, misses:0, rides:0, fare:0}; }
@@ -516,7 +546,7 @@ async function fromFragment(){
   const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs, fare, habit]) => ({
     id: oid, walk_after_s: wa, fare: fare == null ? null : fare, habit: !!habit, legs: legs.map(([fn, tn, alts, hint]) => ({from_name: fn, to_name: tn, hint: hint || null,
       alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s, lines]) => ({rid, from, to, ride_s, walk_before_s, headway_s, lines: lines || ""}))}))}))}));
-  return [{generated: j.g, routes, trips, stops: j.s || null}, j.h || null];
+  return [{generated: j.g, routes, trips, stops: j.s || null, hd: j.hd || null}, j.h || null];
 }
 function fromFiles(it){ // itineraries.json shape -> page shape
   for (const t of it.trips) for (const o of t.options){
