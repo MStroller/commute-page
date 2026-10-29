@@ -11,90 +11,103 @@
 <meta name="robots" content="noindex">
 <title>哪班車最快</title>
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&display=swap">
 <style>
-/* Layout: one column, a departure-board hero (the answer), then two runner-up rows; trip switch on top. */
+/* One question per screen: when do I leave, when do I arrive. Hierarchy by size 40/20/15/13; system font only. */
 :root{
-  --bg:#eef2f1; --panel:#ffffff; --ink:#14212b; --muted:#5d6b73; --line:#d5dddd;
-  --accent:#0b6e7a; --accent-ink:#ffffff; --soon:#b4620a; --ok:#1d7a46; --warn:#b3261e;
-  --board:#14212b; --board-ink:#f4f1e6; --board-dim:#9fb0b8; --amber:#f2b43c;
-  --num:"Barlow Condensed","DIN Condensed","Arial Narrow",sans-serif;
-  --text:-apple-system,"PingFang TC","Noto Sans TC","Heiti TC","Microsoft JhengHei",sans-serif;
+  --bg:#f3f5f6; --panel:#ffffff; --ink:#141a1f; --muted:#5a6670; --line:#dde3e7;
+  --accent:#0b6e7a; --accent-ink:#ffffff; --soon:#a35200; --late:#b3261e; --ok:#1d7a46; --stat:#8a959d;
+  --chip:#eef1f3;
+  --text:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Heiti TC","Microsoft JhengHei",system-ui,sans-serif;
+  color-scheme:light;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#0e1417; --panel:#161f24; --ink:#e6ecee; --muted:#93a3ab; --line:#26333a;
-  --accent:#3fb5c2; --accent-ink:#06262a; --soon:#f0a24a; --ok:#5cc58a; --warn:#ff8a80;
-  --board:#05090b; --board-ink:#f4f1e6; --board-dim:#8095a0; --amber:#f2b43c; color-scheme:dark}}
+  --bg:#0d1114; --panel:#171d21; --ink:#e8edf0; --muted:#9aa7b0; --line:#2a333a;
+  --accent:#4cc0cc; --accent-ink:#04282c; --soon:#ffb454; --late:#ff8a80; --ok:#6fd39a; --stat:#6f7b83;
+  --chip:#222a30; color-scheme:dark}}
 :root[data-theme="dark"]{
-  --bg:#0e1417; --panel:#161f24; --ink:#e6ecee; --muted:#93a3ab; --line:#26333a;
-  --accent:#3fb5c2; --accent-ink:#06262a; --soon:#f0a24a; --ok:#5cc58a; --warn:#ff8a80;
-  --board:#05090b; --board-ink:#f4f1e6; --board-dim:#8095a0; --amber:#f2b43c; color-scheme:dark}
-html,body{background:var(--bg);color:var(--ink)}
-body{font-family:var(--text);font-size:16px;line-height:1.45;
-  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 28px}
-main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
-.trips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.trips button{font:inherit;font-size:16px;font-weight:600;min-height:56px;border-radius:12px;border:1.5px solid var(--line);
-  background:var(--panel);color:var(--ink);cursor:pointer;padding:6px 4px}
-.trips button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
-.trips button.extra{grid-column:1/-1;min-height:40px;font-size:14px;font-weight:500}
-.trips button:focus-visible,.row button:focus-visible,.hero button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
-.here{display:flex;flex-wrap:wrap;gap:6px}
-.here button{font:inherit;font-size:15px;font-weight:600;min-height:40px;border-radius:999px;border:1.5px solid var(--line);
-  background:var(--panel);color:var(--ink);cursor:pointer;padding:6px 12px;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.here button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-.here button.loc{font-weight:500;color:var(--muted);border-style:dashed}
-.here button:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
-.hero{background:var(--board);color:var(--board-ink);border-radius:16px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:10px}
-.hero .lead{font-size:13px;letter-spacing:.08em;color:var(--board-dim)}
-.hero .plan{font-size:22px;font-weight:700;line-height:1.35;text-wrap:balance}
-.hero .sub{font-size:14px;color:var(--board-dim)}
-.hero .plan b{font-family:var(--num);font-size:34px;font-weight:700;color:var(--amber);letter-spacing:.01em;margin:0 2px}
-.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;border-top:1px solid #ffffff22;padding-top:10px}
-.stats div{display:flex;flex-direction:column;min-width:0}
-.stats span{font-size:12px;color:var(--board-dim)}
-.stats strong{font-family:var(--num);font-size:30px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.1}
-.stats strong.soon{color:var(--amber)}
-.hero .acts{display:flex;gap:8px;flex-wrap:wrap}
-.btn{font:inherit;font-size:15px;font-weight:600;border-radius:10px;padding:10px 14px;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;min-height:44px}
-.btn.primary{background:var(--amber);color:#1b1404;border:0}
-.btn.ghost{background:transparent;color:inherit;border:1.5px solid currentColor;opacity:.9}
-.list{display:flex;flex-direction:column;gap:8px}
-.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center}
-.row .sum{font-size:15px;font-weight:600;min-width:0}
-.row .meta{font-size:13px;color:var(--muted);min-width:0}
-.row .t{font-family:var(--num);font-size:28px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;grid-row:1/3;grid-column:2}
-.row .t small{display:block;font-family:var(--text);font-size:12px;color:var(--muted);font-weight:500}
-.row .acts{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.row .btn{font-size:13px;padding:6px 10px;min-height:36px;border:1px solid var(--line);background:transparent;color:var(--ink)}
-.more summary{cursor:pointer;color:var(--muted);font-size:14px;padding:4px 2px}
-.foot{font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:2px}
+  --bg:#0d1114; --panel:#171d21; --ink:#e8edf0; --muted:#9aa7b0; --line:#2a333a;
+  --accent:#4cc0cc; --accent-ink:#04282c; --soon:#ffb454; --late:#ff8a80; --ok:#6fd39a; --stat:#6f7b83;
+  --chip:#222a30; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink);margin:0}
+body{font-family:var(--text);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;-webkit-text-size-adjust:100%;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));overflow-x:hidden}
+main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
+button{font:inherit;color:inherit}
+button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);background:var(--chip);border-radius:12px;padding:3px;gap:3px}
+.seg button{min-height:40px;border:0;border-radius:9px;background:transparent;font-size:15px;font-weight:600;cursor:pointer;padding:4px 2px;white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--panel);box-shadow:0 1px 3px #0002}
+.seg button.extra{grid-column:1/-1;min-height:32px;font-size:13px;font-weight:500;color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+.ctx{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;align-items:center;min-height:20px}
+.ctx button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:3px 10px;font-size:13px;cursor:pointer;min-height:30px;white-space:nowrap}
+.big{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:4px}
+.big .when{font-size:40px;font-weight:700;letter-spacing:-.01em;line-height:1.1}
+.big .when small{font-size:20px;font-weight:600;margin-left:6px}
+.big .cd{font-size:20px;font-weight:700;white-space:nowrap}
+.cd.soon{color:var(--soon)} .cd.late{color:var(--late)}
+.arr{font-size:20px;font-weight:600;margin-top:2px}
+.arr span{color:var(--muted);font-weight:500}
+.badges{display:flex;flex-wrap:wrap;align-items:center;gap:4px 4px;margin-top:12px}
+.b{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:26px;padding:0 7px;border-radius:6px;color:#fff;font-weight:700;font-size:14px;white-space:nowrap;background:#1f5fae}
+.b.mrt{border-radius:13px}
+.w{display:inline-flex;align-items:center;gap:2px;font-size:13px;color:var(--muted);white-space:nowrap}
+.w svg{width:12px;height:14px;fill:currentColor}
+.sep{color:var(--stat);font-size:11px}
+.live{font-size:14px;margin-top:10px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block;flex:none}
+.dot.stat{background:var(--stat)}
+.note{font-size:13px;color:var(--muted);margin-top:4px}
+.warn{color:var(--soon)}
+.miss{margin-top:12px;width:100%;min-height:44px;border-radius:12px;border:1.5px solid var(--line);background:var(--chip);font-size:15px;font-weight:600;cursor:pointer}
+.missed{font-size:14px;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+.missed button{border:0;background:transparent;color:var(--accent);font-size:13px;cursor:pointer;min-height:30px}
+h2{font-size:13px;font-weight:600;color:var(--muted);margin:2px 2px 0}
+.rows{display:flex;flex-direction:column;gap:6px}
+.row{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:flex;align-items:center;gap:10px;min-height:52px;width:100%;text-align:left;cursor:pointer}
+.row .l{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.row .l .badges{margin:0}
+.row .sub{font-size:13px;color:var(--muted)}
+.row .r{text-align:right;white-space:nowrap}
+.row .r b{font-size:20px;font-weight:700;display:block;line-height:1.1}
+.row .r small{font-size:13px;color:var(--muted)}
+.row .cdn{font-size:24px;font-weight:700;min-width:58px}
+.row .cdn small{font-size:13px;font-weight:500;color:var(--muted);margin-left:2px}
+.tag{font-size:12px;font-weight:700;color:var(--ok)}
+details.all>summary{cursor:pointer;color:var(--muted);font-size:14px;padding:6px 2px;list-style:none}
+details.all>summary::-webkit-details-marker{display:none}
+.tl{list-style:none;margin:8px 0 2px;padding:0}
+.tl li{position:relative;padding:0 0 12px 22px;font-size:14px}
+.tl li::before{content:"";position:absolute;left:5px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--panel);border:2px solid var(--muted)}
+.tl li::after{content:"";position:absolute;left:10px;top:17px;bottom:-4px;width:3px;background:var(--line)}
+.tl li:last-child::after{display:none}
+.tl li.ride::after{background:var(--c,#1f5fae)}
+.tl li.ride::before{border-color:var(--c,#1f5fae)}
+.tl time{font-weight:700;margin-right:6px}
+.tl .hint{display:block;font-size:13px;color:var(--muted)}
+.opt{border-top:1px solid var(--line);padding-top:10px;margin-top:10px}
+.opt:first-child{border-top:0;margin-top:0;padding-top:0}
+.opt .hd{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.foot{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+.foot>button{align-self:flex-start;border:0;background:transparent;display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;min-height:32px;padding:0}
+.foot .more{display:flex;flex-direction:column;gap:4px}
+.foot .share{align-self:flex-start;border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;min-height:36px}
+.stops{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.stops button{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:5px 10px;font-size:13px;cursor:pointer;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:34px}
+.stops button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);
   padding:10px 16px;border-radius:999px;font-size:14px;max-width:calc(100% - 32px)}
-.pill{display:inline-block;font-size:12px;border-radius:999px;padding:1px 8px;border:1px solid currentColor;margin-left:6px;vertical-align:2px}
-.pill.ok{color:var(--ok)} .pill.warn{color:var(--warn)} .pill.soon{color:var(--soon)}
-@media (prefers-reduced-motion:no-preference){.hero{transition:opacity .2s}}
 </style>
 
 </head>
 <body>
 <main>
-  <div class="trips" id="trips" role="group" aria-label="選路線"></div>
-  <div class="here" id="here" role="group" aria-label="我現在在哪"></div>
-  <section class="hero" id="hero" aria-live="polite">
-    <div class="lead" id="lead">計算中…</div>
-    <div class="plan" id="plan">載入路線資料</div>
-    <div class="sub" id="sub"></div>
-    <div class="stats">
-      <div><span id="s1l">出門</span><strong id="s1">—</strong></div>
-      <div><span>到達</span><strong id="s2">—</strong></div>
-      <div><span>全程</span><strong id="s3">—</strong></div>
-    </div>
-    <div class="acts" id="heroActs"></div>
-  </section>
-  <div class="list" id="list"></div>
-  <details class="more"><summary>其他路線</summary><div class="list" id="rest"></div></details>
+  <div class="seg" id="trips" role="group" aria-label="選路線"></div>
+  <section class="card" id="hero" aria-live="polite"><div class="ctx">載入路線資料…</div></section>
+  <section id="alts"></section>
+  <details class="all" id="all"><summary>▾ 全部方案（時間軸、出口、車資）</summary><div class="card" id="allList"></div></details>
   <div class="foot" id="foot"></div>
 </main>
 <div class="toast" id="toast" hidden></div>
@@ -103,77 +116,86 @@ main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
 (() => {
 const LIVE_URL = "https://tcgbusfs.blob.core.windows.net/blobbus/GetEstimateTime.gz";
 const $ = id => document.getElementById(id);
-let IT = null, H = {ride:{}, wait:{}, n_rides:0}, LIVE = null, liveErr = null, trip = null, ranked = [];
-let here = null, autoHere = null;   // boarding stop I'm standing at (null = the trip's starting point)
-const HERE_TTL = 40*60*1000, NEAR_M = 150;
+let IT = null, H = {ride:{}, wait:{}, n_rides:0, e:{}}, LIVE = null, trip = null, ranked = [], habitEv = null;
+let autoHere = null, geoState = null;
+const HERE_TTL = 40*60*1000, NEAR_M = 150, MISS_TTL = 15*60*1000, TPASS = 1200;
 const DECILES = [0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.75,0.8,0.9];
-const CAN_TAP = !!(window.claude && window.claude.use);   // one-tap log only inside claude.ai (artifact db)
+const WALK_SVG = '<svg viewBox="0 0 12 14" aria-hidden="true"><circle cx="7" cy="1.8" r="1.6"/><path d="M6.2 4.2 4 5.6 3.4 8.2l1.3.3.4-2 1-.6-.9 4.2L3 13.2l1.2.7 2.4-3 .9-2 1.3 1.5V14h1.4V9.6L8.5 7.6l.4-1.9.6 1.2 2 .8.5-1.2-1.6-.7-1-2.1c-.3-.6-.9-.9-1.5-.8z"/></svg>';
 
-const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}}};
+const store = {get(k){try{return localStorage.getItem(k)}catch(e){return null}}, set(k,v){try{localStorage.setItem(k,v)}catch(e){}},
+               json(k, d){try{return JSON.parse(localStorage.getItem(k)) || d}catch(e){return d}}, put(k,v){try{localStorage.setItem(k, JSON.stringify(v))}catch(e){}}};
 const pad = n => String(n).padStart(2,"0");
 const hm = d => pad(d.getHours()) + ":" + pad(d.getMinutes());
 const mins = s => Math.max(0, Math.round(s/60));
+const isMrt = a => String(a.rid).startsWith("MRT");
 function slotKey(d){ return (d.getDay()===0||d.getDay()===6?"we":"wd") + pad(d.getHours()) + pad(Math.floor(d.getMinutes()/15)*15); }
 function period(d){ const h=d.getHours()+d.getMinutes()/60; return h>=6&&h<11?"am":h>=16&&h<21.5?"pm":"other"; }
-
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 function defaultTrip(){
   const saved = store.get("trip"), at = +store.get("tripAt")||0;
   if (saved && Date.now()-at < 20*60*1000) return saved;
-  return new Date().getHours() < 12 ? "1" : "2";
+  const h = new Date().getHours(); return h < 12 ? "1" : "2";
 }
+const tripObj = () => IT.trips.find(x => x.id === trip) || IT.trips[0];
 
-// ---- "I'm at this stop": rank only what boards here, from now, with no walk to the stop
-function tripObj(){ return IT.trips.find(x => x.id === trip) || IT.trips[0]; }
-function boardStops(t){ // every distinct boarding stop of the trip (first legs, then transfer stops), in order seen
+// ---- route badges: bus = route colour family, MRT = official line colour (white text, contrast >= 4.5:1)
+const LINE = {G:["#00805a","松山新店"], B:["#8a5a14","文湖"], O:["#b45309","中和新蘆"], R:["#c0282d","淡水信義"], L:["#0b5ea8","板南"]};
+function routeName(rid){ const r = IT.routes[String(rid)]; return r ? r.name : String(rid); }
+function busColor(name){
+  if (/^紅/.test(name)) return "#c0282d"; if (/^藍/.test(name)) return "#1d5fa8"; if (/^棕/.test(name)) return "#8a5a14";
+  if (/^綠/.test(name)) return "#2e7d32"; if (/^橘/.test(name)) return "#b45309"; if (/^小/.test(name)) return "#6a4c93";
+  if (/幹線/.test(name)) return "#37474f"; if (/通勤|專車/.test(name)) return "#5d4037"; return "#1f5fae";
+}
+function shortName(name){ return name.replace(/^內科通勤專車/,"內科"); }
+function badge(a){
+  if (isMrt(a)){
+    const ls = (a.lines || "").split("").filter(x => LINE[x]);
+    if (!ls.length) return `<span class="b mrt" style="background:#00805a">捷運</span>`;
+    return ls.map(x => `<span class="b mrt" style="background:${LINE[x][0]}">${LINE[x][1]}</span>`).join('<span class="sep">›</span>');
+  }
+  const nm = routeName(a.rid); return `<span class="b" style="background:${busColor(nm)}">${esc(shortName(nm))}</span>`;
+}
+function legColor(a){ if (isMrt(a)){ const l = (a.lines||"G")[0]; return (LINE[l]||LINE.G)[0]; } return busColor(routeName(a.rid)); }
+const walkChip = s => s >= 30 ? `<span class="w">${WALK_SVG}${mins(s)}</span>` : "";
+function badgeRow(ev, compact){ // compact: route badges only (lists); full: with walking minutes (the answer)
+  if (!ev.o.legs.length) return `<div class="badges">${walkChip(ev.o.walk_after_s)}<span class="w">全程走路</span></div>`;
+  const parts = [];
+  ev.pick.forEach((p, n) => { const w = compact ? "" : walkChip(p.walk); if (w) parts.push(w); parts.push(badge(p.a)); });
+  const w = compact ? "" : walkChip(ev.o.walk_after_s); if (w) parts.push(w);
+  return `<div class="badges">${parts.join('<span class="sep">›</span>')}</div>`;
+}
+const routeLabel = a => isMrt(a) ? "捷運" : routeName(a.rid);
+
+// ---- where am I: the at-stop board opens by itself within 150 m when location is already allowed
+function boardStops(t){
   const out = [];
-  for (let n = 0; n < 4; n++) for (const o of t.options) { const lg = o.legs[n]; if (lg && !out.includes(lg.from_name)) out.push(lg.from_name); }
+  for (let n = 0; n < 4; n++) for (const o of t.options){ const lg = o.legs[n]; if (lg && !out.includes(lg.from_name)) out.push(lg.from_name); }
   return out;
 }
-function savedHere(){ // a tap is remembered for 40 minutes; "" = I tapped the starting point
-  const at = +store.get("hereAt")||0, v = store.get("here");
-  return v != null && Date.now()-at < HERE_TTL ? v : null;
-}
+function savedHere(){ const at = +store.get("hereAt")||0, v = store.get("here"); return v != null && Date.now()-at < HERE_TTL ? v : null; }
 function currentHere(t){
   const v = savedHere(), stops = boardStops(t);
   if (v != null) return v && stops.includes(v) ? v : null;
   return autoHere && stops.includes(autoHere) ? autoHere : null;
 }
-function fromHere(options, x){ // legs from the first boarding at x; options that never board at x are dropped
+function setHere(v){ store.set("here", v); store.set("hereAt", String(Date.now())); render(); }
+function fromHere(options, x){ // one row per bus that stops here, each with its onward plan
   const byPath = new Map();
   for (const o of options){
     const n = o.legs.findIndex(lg => lg.from_name === x);
     if (n < 0) continue;
-    const legs = o.legs.slice(n).map((lg, k) => k ? lg : {...lg, walk_before_s: 0, alts: lg.alts.map(a => ({...a, walk_before_s: 0}))});
-    const key = legs.map(lg => lg.from_name + ">" + lg.to_name + (lg.alts.some(a => String(a.rid).startsWith("MRT")) ? "#M" : "")).join("|");
+    const legs = o.legs.slice(n).map((lg, k) => k ? lg : {...lg, alts: lg.alts.map(a => ({...a, walk_before_s: 0}))});
+    const key = legs.map(lg => lg.from_name + ">" + lg.to_name + (lg.alts.some(isMrt) ? "#M" : "")).join("|");
     const prev = byPath.get(key);
-    if (!prev){ byPath.set(key, {id: o.id, walk_after_s: o.walk_after_s, legs}); continue; }
-    prev.walk_after_s = Math.min(prev.walk_after_s, o.walk_after_s);   // same remaining path: merge its buses
+    if (!prev){ byPath.set(key, {...o, legs}); continue; }
+    prev.walk_after_s = Math.min(prev.walk_after_s, o.walk_after_s);
     prev.legs = prev.legs.map((lg, k) => {
       const seen = new Set(lg.alts.map(a => a.rid+"|"+a.from+"|"+a.to));
       return {...lg, alts: lg.alts.concat(legs[k].alts.filter(a => !seen.has(a.rid+"|"+a.from+"|"+a.to)))};
     });
   }
-  // one row per bus that stops here (each with its onward plan), so the list answers "which bus do I board"
   return [...byPath.values()].flatMap(o => o.legs[0].alts.map(a => ({...o, legs: [{...o.legs[0], alts: [a]}, ...o.legs.slice(1)]})));
 }
-function renderHere(){
-  const el = $("here"), t = tripObj(); el.innerHTML = "";
-  here = currentHere(t);
-  const mk = (label, val, cls) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.textContent = label; if (cls) b.className = cls;
-    if (val !== undefined){
-      b.setAttribute("aria-pressed", String((val || null) === here));
-      b.onclick = () => { store.set("here", val); store.set("hereAt", String(Date.now())); renderHere(); render(); };
-    }
-    el.appendChild(b); return b;
-  };
-  mk("我在：出發地", "");
-  for (const name of boardStops(t)) mk(name, name);
-  if (IT.stops && navigator.geolocation && geoState !== "granted" && geoState !== "denied")
-    mk("用定位找站", undefined, "loc").onclick = () => locate(true);
-}
-let geoState = null;
 function nearestStop(lat, lon){
   let best = null;
   for (const name of boardStops(tripObj())){
@@ -183,46 +205,47 @@ function nearestStop(lat, lon){
   }
   return best && best.d <= NEAR_M ? best : null;
 }
-function locate(asked){ // optional: preselect the nearest boarding stop within 150 m; a tap always works without it
+function locate(asked){
   if (!IT.stops || !navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(pos => {
     geoState = "granted";
     const n = nearestStop(pos.coords.latitude, pos.coords.longitude);
     autoHere = n ? n.name : null;
-    if (asked){ store.set("here", n ? n.name : ""); store.set("hereAt", String(Date.now())); }
-    if (asked) toast(n ? `最近的站：${n.name}（${Math.round(n.d)} 公尺）` : "附近 150 公尺內沒有這段路線的站，用出發地算");
-    renderHere(); render();
-  }, () => { if (asked){ geoState = "denied"; toast("拿不到定位，直接點你在的站"); renderHere(); } },
+    if (asked){ store.set("here", n ? n.name : ""); store.set("hereAt", String(Date.now()));
+      toast(n ? `最近的站：${n.name}（${Math.round(n.d)} 公尺）` : "150 公尺內沒有這段路線的站，用出發地算"); }
+    render();
+  }, () => { if (asked){ geoState = "denied"; toast("拿不到定位，直接點你在的站"); render(); } },
   {maximumAge: 60000, timeout: 8000, enableHighAccuracy: true});
 }
-async function autoLocate(){ // only when already allowed (never prompts on open) and no recent tap
+async function autoLocate(){ // never prompts: only when location is already allowed and I did not just tap a stop
   if (!IT.stops || !navigator.geolocation || savedHere() != null) return;
   try{ const p = await navigator.permissions.query({name:"geolocation"}); geoState = p.state; }catch(e){ geoState = null; }
   if (geoState === "granted") locate(false);
 }
 
-// ---- statistics helpers
-function rideP(alt, d, p){ // seconds at percentile p (0.75 default) from history, else static x1.15
-  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to];
-  const dec = h && (h[period(d)] || h.all);
-  if (dec && dec.length===10){ let i = DECILES.indexOf(p); if(i<0) i=7; return dec[i]; }
-  return alt.ride_s * (p>=0.75 ? 1.15 : 1.0);
+// ---- statistics
+function rideP(alt, d){ // seconds at p75 from history, else static x1.15
+  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to], dec = h && (h[period(d)] || h.all);
+  return dec && dec.length === 10 ? dec[7] : alt.ride_s * 1.15;
 }
-function rideCdf(alt, d, x){ // P(ride <= x) from deciles; null if no history
-  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to]; const dec = h && (h[period(d)] || h.all);
+function rideCdf(alt, d, x){
+  const h = H.ride[alt.rid+"|"+alt.from+"|"+alt.to], dec = h && (h[period(d)] || h.all);
   if (!dec) return null;
   if (x < dec[0]) return 0.05; if (x >= dec[9]) return 0.95;
   for (let i=0;i<9;i++) if (x < dec[i+1]) return DECILES[i] + (DECILES[i+1]-DECILES[i])*(x-dec[i])/Math.max(1,dec[i+1]-dec[i]);
   return 0.95;
 }
-function typicalWait(alt, d){ // median seconds until next bus at this time slot
-  const w = H.wait[alt.rid+"|"+alt.from]; const s = w && w[slotKey(d)];
-  if (s && s[2] >= 3) return s[0];
-  return (alt.headway_s || 900) / 2;
+function typicalWait(alt, d){ const w = H.wait[alt.rid+"|"+alt.from], s = w && w[slotKey(d)]; return s && s[2] >= 3 ? s[0] : headway(alt)/2; }
+const headway = alt => alt.headway_s || 900;
+// Official ETAs run late on my stops (measured: median actual - predicted per bucket). Expected arrival uses the
+// median; "be at the stop by" uses p10, so I catch the bus about 9 times in 10.
+function etaFix(eta){
+  const b = eta < 180 ? "0-3" : eta < 360 ? "3-6" : eta < 600 ? "6-10" : "10-30", e = H.e && H.e[b];
+  if (!e || eta > 1800) return {bias:0, early:0};
+  return {bias: Math.min(0, e[0]), early: Math.min(0, e[1])};
 }
-function headway(alt){ return alt.headway_s || 900; }
 
-// ---- live ETA (works only where the page may fetch the city feed)
+// ---- live ETA (city open data, CORS *, no key)
 async function loadLive(){
   const t0 = performance.now();
   try{
@@ -233,161 +256,256 @@ async function loadLive(){
     for (const e of j.BusInfo) m.set(e.RouteID+"|"+e.StopID, +e.EstimateTime);
     const [ds, ts] = j.EssentialInfo.UpdateTime.split(" ");
     LIVE = {map:m, at:new Date(ds.replace(/\//g,"-")+"T"+ts+"+08:00"), ms:Math.round(performance.now()-t0)};
-    liveErr = null;
-  }catch(e){ LIVE = null; liveErr = e; }
-}
-function liveEta(alt, atDate){ // seconds from atDate until a bus of alt reaches alt.from, or null
-  if (!LIVE) return null;
-  const v = LIVE.map.get(alt.rid+"|"+alt.from);
-  if (v == null || v < 0) return v == null ? null : -1;
-  let left = v - (atDate - LIVE.at)/1000;
-  while (left < 0) left += headway(alt);
-  return left;
+  }catch(e){ LIVE = null; }
 }
 
-// ---- ranking: expected arrival for each option, starting now
-function evaluate(o, now){
-  if (!o.legs.length) return {o, arrive:new Date(+now + o.walk_after_s*1000), leave:now, firstWait:0, total:o.walk_after_s, live:false, pTransfer:null, pick:[]};
-  let t = +now, leave = null, firstWait = null, pTransfer = null, usedLive = false, pick = [];
-  o.legs.forEach((lg, n) => {
-    let best = null;
-    for (const a of lg.alts){
-      if (String(a.rid).startsWith("MRT")){
-        const board = t + a.walk_before_s*1000 + headway(a)/2*1000;
-        const cand = {a, board, arr: board + rideP(a, new Date(board), 0.75)*1000, wait: headway(a)/2, live:false};
-        if (!best || cand.arr < best.arr) best = cand; continue;
-      }
-      const reach = t + a.walk_before_s*1000;
-      let wait, live = false;
-      const le = liveEta(a, new Date(reach));
-      if (le === -1) continue;                 // not running now
-      if (le != null){ wait = le; live = true; }
-      else wait = typicalWait(a, new Date(reach));
-      const board = reach + wait*1000;
-      const cand = {a, board, arr: board + rideP(a, new Date(board), 0.75)*1000, wait, live, reach};
-      if (!best || cand.arr < best.arr) best = cand;
-    }
-    if (!best){ t = Infinity; return; }
-    if (n === 0){ leave = new Date(best.board - best.a.walk_before_s*1000); firstWait = best.wait; }
-    if (n === 1 && best.live && pick[0]){ // chance the first ride is fast enough for this bus
-      const prev = pick[0]; const slack = (best.board - prev.board)/1000 - best.a.walk_before_s;
-      pTransfer = rideCdf(prev.a, new Date(prev.board), slack);
-    }
-    usedLive = usedLive || best.live; pick.push(best); t = best.arr;
-  });
-  if (!isFinite(t)) return null;
-  const arrive = new Date(t + o.walk_after_s*1000);
-  return {o, arrive, leave: leave < now ? now : leave, firstWait, total:(arrive-now)/1000, live:usedLive, pTransfer, pick};
+// ---- "missed this one": exclude the bus that just left and re-rank
+function missed(){ const m = store.json("missed", []); return m.filter(x => Date.now() - x.at < MISS_TTL); }
+let whatIf = [];   // a departure excluded only for the "if I miss this one" preview
+function excludedUntil(a){ // the departure I said I missed for this route+stop (ms), or 0
+  let u = 0; for (const x of missed().concat(whatIf)) if (x.k === a.rid+"|"+a.from) u = Math.max(u, x.board + 60000); return u;
 }
 
-function routeName(rid){ const r = IT.routes[String(rid)]; return r ? r.name : String(rid); }
-function routeLabel(a){ const nm = String(a.rid).startsWith("MRT") ? "捷運" : routeName(a.rid); return nm + hao(nm); }
-function hao(name){ return /幹線|快線|專車|小巴|捷運/.test(name) ? "" : "號"; }
-function planHTML(ev){
-  if (!ev.o.legs.length) return "直接<b>走路</b>";
-  return ev.pick.map((p, n) => {
-    const mrt = String(p.a.rid).startsWith("MRT");
-    const nm = mrt ? "捷運" : routeName(p.a.rid);
-    const to = ev.o.legs[n].to_name;
-    return (n===0 ? "搭" : "→ 轉") + `<b>${esc(nm)}</b>` + hao(nm) + ` → 在 ${esc(to)} 下`;
-  }).join(" ");
-}
-function plainPlan(ev){
-  if (!ev.o.legs.length) return "走路";
-  return ev.pick.map((p,n)=>(n?"轉 ":"搭 ")+(String(p.a.rid).startsWith("MRT")?"捷運":routeName(p.a.rid))+" → "+ev.o.legs[n].to_name+" 下").join(" → ");
-}
-function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function liveLinks(ev){
-  if (!ev.pick.length) return "";
-  const seen = new Set(); let html = "";
-  for (const p of ev.pick){
-    const r = IT.routes[String(p.a.rid)];
-    if (!r || !r.nid || seen.has(r.nid)) continue; seen.add(r.nid);
-    html += `<a class="btn ghost" href="https://ebus.gov.taipei/Route/StopsOfRoute?routeid=${r.nid}" target="_blank" rel="noopener">${esc(r.name)} 即時</a>`;
+// ---- one bus/train choice for a leg reached at time t (ms)
+function legChoice(a, t){
+  const reach = t + a.walk_before_s*1000, until = excludedUntil(a), hw = headway(a)*1000;
+  let busAt, safeAt, live = false, official = null, fix = null;
+  if (isMrt(a)){
+    busAt = reach + hw/2; safeAt = busAt;
+    while (busAt <= until){ busAt += hw; safeAt = busAt; }
+  } else {
+    const v = LIVE ? LIVE.map.get(a.rid+"|"+a.from) : undefined;
+    if (v != null && v < 0) return null;                       // not running now
+    if (v != null){
+      live = true;
+      official = +LIVE.at + v*1000;                            // the official estimate, absolute
+      fix = etaFix(Math.max(0, official - reach)/1000);
+      busAt = official + fix.bias*1000; safeAt = official + fix.early*1000;
+      // gone before I can get there, or the one I said I missed: the next one (headway estimate, not live)
+      while (busAt < reach || busAt <= until){ official += hw; busAt += hw; safeAt += hw; live = false; }
+    } else {
+      busAt = reach + typicalWait(a, new Date(reach))*1000; safeAt = busAt;
+      while (busAt <= until){ busAt += hw; safeAt = busAt; }
+    }
+    if (busAt < reach) busAt = reach;
   }
-  return html;
+  const arr = busAt + rideP(a, new Date(busAt))*1000;
+  return {a, reach, board: busAt, safe: Math.max(t, Math.min(safeAt, busAt)), arr, live, official, fix, walk: a.walk_before_s};
+}
+function evaluate(o, now){
+  if (!o.legs.length) return {o, arrive:new Date(+now + o.walk_after_s*1000), leave:now, total:o.walk_after_s, live:false, pTransfer:null, pick:[]};
+  let t = +now; const pick = []; let pTransfer = null;
+  for (let n = 0; n < o.legs.length; n++){
+    let best = null;
+    for (const a of o.legs[n].alts){ const c = legChoice(a, t); if (c && (!best || c.arr < best.arr)) best = c; }
+    if (!best) return null;
+    if (n === 1 && best.live && pick[0]){
+      const slack = (best.board - pick[0].board)/1000 - best.walk;
+      pTransfer = rideCdf(pick[0].a, new Date(pick[0].board), slack);
+    }
+    pick.push(best); t = best.arr;
+  }
+  const first = pick[0];
+  // leave so I am at the stop by the "safe" time (official ETA corrected by its measured early bias)
+  const leave = new Date(Math.max(+now, first.safe - first.walk*1000));
+  const arrive = new Date(t + o.walk_after_s*1000);
+  return {o, arrive, leave, total:(arrive-now)/1000, live: pick.some(p => p.live), pTransfer, pick};
+}
+
+// ---- rendering
+function countdown(leave, now){
+  const s = (leave - now)/1000;
+  if (s <= 20) return {txt:"現在出門", cls:"late"};
+  if (s < 180) return {txt:`還有 ${Math.floor(s/60)}:${pad(Math.floor(s%60))}`, cls:"soon"};
+  return {txt:`還有 ${Math.round(s/60)} 分`, cls:""};
+}
+function liveLine(ev, now, atStop){
+  if (!ev.o.legs.length) return "";
+  const p = ev.pick[0], w = (p.board - now)/60000, where = atStop ? "" : `到${esc(ev.o.legs[0].from_name)}`;
+  const when = w < 1 ? "進站中" : `${Math.round(w)} 分後${where}`;
+  return `<div class="live"><span class="dot ${p.live?"":"stat"}"></span><span>${esc(routeLabel(p.a))} ${when}</span>
+    <span class="note" style="margin:0">${p.live ? "即時" : "統計"}</span></div>`;
+}
+function earlyNote(ev, now, atStop){
+  const p = ev.pick[0]; if (!p || !p.live || !p.fix) return "";
+  const early = Math.round(-p.fix.early/60);
+  if (early < 1) return "";
+  const off = Math.round((p.official - now)/60000);
+  if (off < 3) return "";
+  return atStop ? `<div class="note">官方說 ${off} 分；實測常提早到，可能早 ${early} 分就來，先站好</div>`
+                : `<div class="note">官方說 ${off} 分；這站實測常早到，已提早 ${early} 分叫你出門</div>`;
+}
+function transferNote(ev){
+  if (ev.pTransfer == null || ev.pTransfer >= 0.8) return "";
+  return `<div class="note warn">轉乘趕上機率 ${Math.round(ev.pTransfer*100)}%</div>`;
+}
+function nextAfter(ev, now){ // what I'd do if this bus leaves without me
+  const p = ev.pick[0]; if (!p) return null;
+  whatIf = [{k: p.a.rid+"|"+p.a.from, board: p.board, at: Date.now()}];
+  try{ return rankAll(now)[0] || null; } finally { whatIf = []; }
+}
+function rankAll(now){
+  const t = tripObj(), here = currentHere(t);
+  const opts = here ? fromHere(t.options, here) : t.options;
+  // same arrival (within a minute): at a stop the bus that comes first wins; at home the later departure wins
+  const first = ev => ev.pick[0] ? ev.pick[0].board : 0;
+  return opts.map(o => evaluate(o, now)).filter(Boolean)
+    .sort((a,b) => Math.abs(a.arrive - b.arrive) >= 60000 ? a.arrive - b.arrive : here ? first(a) - first(b) : b.leave - a.leave);
 }
 
 function render(){
   if (!IT) return;
-  const now = new Date();
-  const t = tripObj();
-  here = currentHere(t);
-  const opts = here ? fromHere(t.options, here) : t.options;
-  ranked = opts.map(o => evaluate(o, now)).filter(Boolean).sort((a,b) => a.arrive - b.arrive);
-  const best = ranked[0];
-  $("lead").textContent = t.label + (here ? `　在「${here}」上車` : "") + "　最快" + (best && best.live ? "（即時）" : "（依時段統計）");
-  if (!best){ $("plan").textContent = here ? "這站現在沒有可用的車" : "現在沒有可用的車";
-    $("sub").textContent = ""; ["s1","s2","s3"].forEach(k => $(k).textContent = "—"); $("heroActs").innerHTML = ""; $("list").innerHTML = ""; $("rest").innerHTML = ""; return; }
-  $("plan").innerHTML = (here ? "在這站" : "") + planHTML(best);
-  const w = `${best.live?"":"約"} ${mins(best.firstWait)} 分`;
-  $("sub").textContent = !best.o.legs.length ? `全程走路 ${mins(best.o.walk_after_s)} 分`
-    : here ? `${routeLabel(best.pick[0].a)}${w}後到站（${hm(new Date(best.pick[0].board))}），${hm(best.arrive)} 到；下車後走 ${mins(best.o.walk_after_s)} 分`
-    : `走 ${mins(best.pick[0].a.walk_before_s)} 分到「${best.o.legs[0].from_name}」，到站後${best.live?"":"約"}等 ${mins(best.firstWait)} 分；下車後走 ${mins(best.o.walk_after_s)} 分`;
-  const leaveIn = (best.leave - now)/60000;
-  $("s1l").textContent = here ? "車來" : best.o.legs.length ? "出門" : "出發";
-  $("s1").textContent = here ? (best.firstWait < 60 ? "進站" : mins(best.firstWait) + " 分") : leaveIn < 1 ? "現在" : hm(best.leave);
-  $("s1").className = (here ? best.firstWait < 180 : leaveIn < 3) ? "soon" : "";
-  $("s2").textContent = hm(best.arrive);
-  $("s3").textContent = mins(best.total) + " 分";
-  const firstWalk = best.o.legs.length ? best.pick[0].a.walk_before_s : 0;
-  let pt = best.pTransfer != null ? `<span class="pill ${best.pTransfer>=0.8?"ok":best.pTransfer>=0.5?"soon":"warn"}">轉乘成功 ${Math.round(best.pTransfer*100)}%</span>` : "";
-  $("heroActs").innerHTML = (CAN_TAP ? `<button class="btn primary" type="button" data-take="0">我搭這個</button>` : "") + liveLinks(best) + pt;
-
-  const rowHTML = (ev, i) => {
-    const d = Math.round((ev.arrive - best.arrive)/60000);
-    const pt = ev.pTransfer != null ? ` · 轉乘成功 ${Math.round(ev.pTransfer*100)}%` : "";
-    const walk = !ev.o.legs.length ? `走 ${mins(ev.o.walk_after_s)} 分`
-      : here ? `${routeLabel(ev.pick[0].a)}${ev.live?"":"約"} ${mins(ev.firstWait)} 分後到站`
-      : `走 ${mins(ev.pick[0].a.walk_before_s)} 分到站 · 等約 ${mins(ev.firstWait)} 分`;
-    return `<div class="row"><div class="sum">${esc(plainPlan(ev))}</div>
-      <div class="t">${hm(ev.arrive)}<small>${d<=0?"一樣快":"晚 "+d+" 分"}</small></div>
-      <div class="meta">${walk}${ev.o.legs.length?" · 最後走 "+mins(ev.o.walk_after_s)+" 分":""}${pt}</div>
-      <div class="acts">${CAN_TAP ? `<button class="btn" type="button" data-take="${i}">我搭這個</button>` : ""}${liveLinks(ev).replace(/btn ghost/g,"btn")}</div></div>`;
-  };
-  $("list").innerHTML = ranked.slice(1,3).map((ev,i)=>rowHTML(ev,i+1)).join("");
-  $("rest").innerHTML = ranked.slice(3).map((ev,i)=>rowHTML(ev,i+3)).join("") || `<div class="meta">沒有其他路線</div>`;
-
-  const hist = H.n_rides ? `歷史 ${H.n_rides} 趟實測（${(H.generated||"").slice(5,10)} 更新）` : "還沒有實測紀錄：車程用路網估計、等車用班距";
-  const live = LIVE ? `即時資料 ${hm(LIVE.at)}（下載＋解壓 ${LIVE.ms} ms）`
-                    : (CAN_TAP ? "這個頁面拿不到即時到站（claude.ai 不允許連外）" : "即時到站暫時抓不到")
-                      + "：排序用平日同時段的實測等車與車程；按「即時」看官方到站";
-  $("foot").innerHTML = `<div>${live}</div><div>${hist}</div><div>路線資料 ${(IT.generated||"").slice(0,10)}；站牌或走路分鐘有錯，跟顧問說一句就改</div>`;
+  const now = new Date(), t = tripObj(), here = currentHere(t);
+  renderTrips();
+  ranked = rankAll(now);
+  // my usual route (config include[0]) evaluated from the same place, for the "minutes saved" count
+  const habit = t.options.find(o => o.habit);
+  habitEv = !habit ? null : here ? (ranked.find(ev => ev.o.id === habit.id) || null) : evaluate(habit, now);
+  const best = ranked[0], ms = missed();
+  const hero = $("hero");
+  const ctx = `<div class="ctx"><span>${here ? `在「${esc(here)}」` : esc(t.label)}${LIVE ? "" : "・沒有即時，用統計"}</span>
+    ${here ? `<button type="button" data-act="home">回出發地</button>` : ""}</div>`;
+  const missHead = ms.length ? `<div class="missed"><span>剛錯過 ${ms.map(x => esc(routeLabel({rid:x.k.split("|")[0]})) + "（" + hm(new Date(x.board)) + "）").join("、")}</span>
+    <button type="button" data-act="unmiss">復原</button></div>` : "";
+  if (!best){
+    hero.innerHTML = ctx + missHead + `<div class="arr" style="margin-top:8px">${here ? "這站現在沒有可用的車" : "現在沒有可用的車"}</div>`;
+    $("alts").innerHTML = ""; $("allList").innerHTML = ""; renderFoot(now); return;
+  }
+  const nx = best.o.legs.length ? nextAfter(best, now) : null;
+  const missBtn = nx ? `<button class="miss" type="button" data-act="miss">錯過這班 → 下一個 ${hm(nx.arrive)} 到${Math.round((nx.arrive-best.arrive)/60000) > 0 ? `（晚 ${Math.round((nx.arrive-best.arrive)/60000)} 分）` : ""}</button>` : "";
+  if (here){
+    hero.innerHTML = ctx + missHead + board(now, best) + missBtn;
+  } else {
+    const cd = countdown(best.leave, now);
+    hero.innerHTML = ctx + missHead + `
+      <div class="big"><span class="when">${hm(best.leave)}<small>出門</small></span><span class="cd ${cd.cls}">${cd.txt}</span></div>
+      <div class="arr">${hm(best.arrive)} 到 <span>· ${mins(best.total)} 分${best.o.fare != null ? ` · NT$${best.o.fare}` : ""}</span></div>
+      ${badgeRow(best)}${liveLine(best, now, false)}${earlyNote(best, now)}${transferNote(best)}${missBtn}`;
+  }
+  // runner-ups: two rows only (origin mode); the board already lists every bus
+  const rest = here ? [] : ranked.slice(1, 3);
+  $("alts").innerHTML = rest.length ? `<h2>也可以</h2><div class="rows">${rest.map((ev, i) => `
+    <button class="row" type="button" data-open="${i+1}"><div class="l">${badgeRow(ev, true)}
+      <span class="sub">${hm(ev.leave)} 出門${ev.o.legs.length ? " · " + esc(ev.o.legs[0].from_name) + "上車" : ""}${transferNote(ev) ? " · 轉乘 " + Math.round(ev.pTransfer*100) + "%" : ""}</span></div>
+      <div class="r"><b>${hm(ev.arrive)}</b><small>+${Math.max(0, Math.round((ev.arrive-best.arrive)/60000))} 分</small></div></button>`).join("")}</div>` : "";
+  $("allList").innerHTML = ranked.map((ev, i) => timeline(ev, i, best, now)).join("") || `<div class="note">沒有其他方案</div>`;
+  renderFoot(now);
+  logView(best, here, now);
+}
+function board(now, best){ // at-stop board: one row per bus, countdown left, arrival right
+  const seen = new Set(), list = ranked.filter(ev => { // one row per bus at this stop (its fastest onward plan)
+    const k = ev.pick[0] ? routeLabel(ev.pick[0].a) : "walk"; if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, 5);
+  const rows = list.map((ev) => { const i = ranked.indexOf(ev);
+    const p = ev.pick[0], w = (p.board - now)/60000;
+    const pt = ev.pTransfer != null && ev.pTransfer < 0.8 ? ` · 轉乘 ${Math.round(ev.pTransfer*100)}%` : "";
+    return `<button class="row" type="button" data-open="${i}">
+      <span class="cdn">${w < 1 ? "進站" : Math.round(w) + "<small>分</small>"}</span>
+      <div class="l">${badgeRow(ev, true)}<span class="sub"><span class="dot ${p.live?"":"stat"}"></span> ${p.live?"即時":"統計"}${pt}</span></div>
+      <div class="r"><b>${hm(ev.arrive)}</b>${i === 0 ? `<span class="tag">最快</span>` : `<small>+${Math.max(0, Math.round((ev.arrive-best.arrive)/60000))} 分</small>`}</div></button>`;
+  }).join("");
+  return `<div class="rows" style="margin-top:8px">${rows}</div>${earlyNote(best, now, true)}`;
+}
+function timeline(ev, i, best, now){
+  const items = [];
+  if (!ev.o.legs.length) items.push(`<li><time>${hm(now)}</time>走路 ${mins(ev.o.walk_after_s)} 分</li>`);
+  ev.pick.forEach((p, n) => {
+    const lg = ev.o.legs[n], hint = lg.hint || [];
+    if (p.walk >= 30) items.push(`<li><time>${hm(new Date(n ? ev.pick[n-1].arr : +ev.leave))}</time>走 ${mins(p.walk)} 分到 ${esc(lg.from_name)}${hint[0] ? `<span class="hint">${hint[0]} 號出口進站</span>` : ""}</li>`);
+    const pt = n === 1 && ev.pTransfer != null && ev.pTransfer < 0.8 ? `<span class="hint warn">轉乘趕上機率 ${Math.round(ev.pTransfer*100)}%</span>` : "";
+    const car = hint[2] ? `<span class="hint">${esc(hint[2])}</span>` : "";
+    items.push(`<li class="ride" style="--c:${legColor(p.a)}"><time>${hm(new Date(p.board))}</time>${badge(p.a)} ${esc(lg.from_name)} → ${esc(lg.to_name)}
+      <span class="hint">${p.live ? "即時" : "約"} · 車程約 ${mins(p.arr - p.board > 0 ? (p.arr-p.board)/1000 : 0)} 分</span>${car}${pt}</li>`);
+    if (hint[1]) items.push(`<li><time>${hm(new Date(p.arr))}</time>${hint[1]} 號出口出站</li>`);
+  });
+  if (ev.o.legs.length) items.push(`<li><time>${hm(ev.arrive)}</time>到${ev.o.walk_after_s >= 30 ? `（下車走 ${mins(ev.o.walk_after_s)} 分）` : ""}</li>`);
+  const d = Math.round((ev.arrive - best.arrive)/60000);
+  return `<div class="opt" id="opt-${i}"><div class="hd">${badgeRow(ev)}<span class="note" style="margin:0;white-space:nowrap">${i===0?"最快":"+"+Math.max(0,d)+" 分"}${ev.o.fare != null ? " · NT$"+ev.o.fare : ""}${ev.o.habit ? " · 習慣" : ""}</span></div><ol class="tl">${items.join("")}</ol></div>`;
 }
 
-function renderTrips(){
-  const el = $("trips"); el.innerHTML = "";
-  for (const t of IT.trips){
-    const b = document.createElement("button");
-    b.type = "button"; b.textContent = t.label; b.id = "trip-" + t.id;
-    if (t.priority > 1) b.className = "extra";
-    b.setAttribute("aria-pressed", String(t.id === trip));
-    b.onclick = () => { trip = t.id; store.set("trip", trip); store.set("tripAt", String(Date.now())); renderTrips(); renderHere(); render(); };
-    el.appendChild(b);
+// ---- C5: TPASS check and "minutes saved" (local-only counts on this phone; nothing is sent anywhere)
+function workdays(d){ let n = 0; const y = d.getFullYear(), m = d.getMonth(), last = new Date(y, m+1, 0).getDate();
+  for (let i = 1; i <= last; i++){ const w = new Date(y, m, i).getDay(); if (w && w < 6) n++; } return n; }
+function habitFare(id){ const t = IT.trips.find(x => x.id === id); const o = t && (t.options.find(x => x.habit) || t.options[0]); return o && o.fare != null ? o.fare : null; }
+function tpassLine(now){
+  const a = habitFare("1"), b = habitFare("2"); if (a == null || b == null) return "";
+  const wd = workdays(now), est = wd * (a + b), log = monthLog(now);
+  const extra = log.fare && log.rides ? `；這支手機本月記到 ${log.rides} 趟 NT$${log.fare}` : "";
+  const verdict = est > TPASS ? `買 TPASS 省 NT$${est - TPASS}` : `不買，刷卡省 NT$${TPASS - est}`;
+  return `TPASS ${TPASS}：本月平日 ${wd} 天 × 來回 NT$${a + b} ≈ NT$${est.toLocaleString()} → ${verdict}${extra}`;
+}
+function monthKey(d){ return d.getFullYear() + "-" + pad(d.getMonth()+1); }
+function monthLog(d){ const all = store.json("cm_log", {}); return all[monthKey(d)] || {opens:0, differ:0, predSaved:0, followed:0, saved:0, misses:0, rides:0, fare:0}; }
+function putMonth(d, m){ const all = store.json("cm_log", {}); all[monthKey(d)] = m; store.put("cm_log", all); }
+function logView(best, here, now){
+  // one count per trip per 20 minutes: what the page recommended vs my usual route (config include[0])
+  const k = "cm_last_" + trip, last = +store.get(k) || 0;
+  const m = monthLog(now), gain = habitEv ? Math.max(0, Math.round((habitEv.arrive - best.arrive)/60000)) : 0;
+  if (Date.now() - last > 20*60*1000){
+    store.set(k, String(Date.now())); store.set(k + "_pick", "");
+    m.opens++; if (gain >= 1){ m.differ++; m.predSaved += Math.min(gain, 30); }
+    putMonth(now, m);
+  }
+  // I'm standing at a boarding stop of the recommendation (board opened): count it once as followed
+  if (here && store.get(k + "_pick") !== "1" && best.o.legs.length){
+    store.set(k + "_pick", "1");
+    m.followed++; m.saved += Math.min(30, gain); m.rides++; m.fare += best.o.fare || 0;
+    putMonth(now, m);
   }
 }
-
-// ---- one-tap outcome log (db capability, owner only)
-let dbp = null;
-async function take(i){
-  const ev = ranked[i]; if (!ev) return;
-  const row = {tapped_at: localIso(new Date()), trip, option: ev.o.id, rank: i+1, predicted_arrival: localIso(ev.arrive),
-               plan: plainPlan(ev), mode: ev.live ? "live" : "stats", at: here || ""};
-  try{
-    dbp = dbp || (window.claude && window.claude.use ? window.claude.use("db") : Promise.resolve(null));
-    const db = await dbp;
-    if (!db) throw new Error("no db");
-    await db.collection("taken").add(row);
-    toast(`記下了：預計 ${hm(ev.arrive)} 到`);
-  }catch(e){ toast("沒記到（這個檢視不能寫入），之後會從車輛紀錄推斷"); }
+function shareText(now){
+  const m = monthLog(now);
+  return `通勤頁回報 ${monthKey(now)}（只有次數，沒有地點）：打開 ${m.opens} 次；建議和習慣路線不同 ${m.differ} 次，預估可省 ${m.predSaved} 分；` +
+    `到站照建議搭 ${m.followed} 次，估計省 ${m.saved} 分；按「錯過這班」${m.misses} 次；記到 ${m.rides} 趟 NT$${m.fare}。`;
 }
-function localIso(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${hm(d)}:${pad(d.getSeconds())}`; }
+async function share(){
+  const text = shareText(new Date());
+  try{ if (navigator.share){ await navigator.share({text}); return; } }catch(e){ if (e && e.name === "AbortError") return; }
+  try{ await navigator.clipboard.writeText(text); toast("已複製，貼給顧問就好"); }catch(e){ toast(text); }
+}
+
+let footOpen = false;
+function renderFoot(now){
+  const m = monthLog(now), tp = tpassLine(now);
+  const dot = LIVE ? `<span class="dot"></span>即時 ${hm(LIVE.at)}` : `<span class="dot stat"></span>統計（即時抓不到）`;
+  const stops = boardStops(tripObj()), here = currentHere(tripObj());
+  $("foot").innerHTML = `${tp ? `<div>${tp}</div>` : ""}
+    <button type="button" data-act="foot" aria-expanded="${footOpen}">${dot}</button>
+    ${footOpen ? `<div class="more">
+      <div>${H.n_rides ? `車程用 ${H.n_rides} 趟實測 p75（${(H.generated||"").slice(5,10)}）` : "車程用路網估計"}；路線 ${(IT.generated||"").slice(0,10)}${LIVE ? `；即時下載 ${LIVE.ms} ms` : ""}</div>
+      <div>這個月：打開 ${m.opens} 次，照建議 ${m.followed} 次，估計省 ${m.saved} 分（只存在這支手機）</div>
+      <button class="share" type="button" data-act="share">複製回報給顧問</button>
+      <div>在別站上車？</div><div class="stops">
+        <button type="button" data-here="" aria-pressed="${!here}">出發地</button>
+        ${stops.map(s => `<button type="button" data-here="${esc(s)}" aria-pressed="${s === here}">${esc(s)}</button>`).join("")}
+        ${IT.stops && navigator.geolocation && geoState !== "granted" && geoState !== "denied" ? `<button type="button" data-act="locate">用定位找站</button>` : ""}
+      </div></div>` : ""}`;
+}
+function renderTrips(){
+  const el = $("trips");
+  el.innerHTML = IT.trips.map(t => `<button type="button" id="trip-${t.id}" data-trip="${t.id}" class="${t.priority > 1 ? "extra" : ""}" aria-pressed="${t.id === trip}">${esc(t.label)}</button>`).join("");
+}
+
 let tt = null;
 function toast(msg){ const el = $("toast"); el.textContent = msg; el.hidden = false; clearTimeout(tt); tt = setTimeout(()=>el.hidden = true, 3000); }
-document.addEventListener("click", e => { const b = e.target.closest("[data-take]"); if (b) take(+b.dataset.take); });
+document.addEventListener("click", e => {
+  const b = e.target.closest("button"); if (!b || !IT) return;
+  if (b.dataset.trip){ trip = b.dataset.trip; store.set("trip", trip); store.set("tripAt", String(Date.now())); render(); return; }
+  if (b.dataset.here !== undefined){ setHere(b.dataset.here); return; }
+  if (b.dataset.open !== undefined){ $("all").open = true; const el = $("opt-" + b.dataset.open); if (el) el.scrollIntoView({behavior:"smooth", block:"start"}); return; }
+  const act = b.dataset.act;
+  if (act === "home") setHere("");
+  else if (act === "miss"){
+    const p = ranked[0] && ranked[0].pick[0]; if (!p) return;
+    store.put("missed", missed().concat([{k: p.a.rid+"|"+p.a.from, board: p.board, at: Date.now()}]));
+    const m = monthLog(new Date()); m.misses++; putMonth(new Date(), m); render();
+  }
+  else if (act === "unmiss"){ store.put("missed", []); render(); }
+  else if (act === "foot"){ footOpen = !footOpen; renderFoot(new Date()); }
+  else if (act === "share") share();
+  else if (act === "locate") locate(true);
+});
 
-// ---- data: from the URL fragment (#d=<deflate-raw, base64url>; hosted page, never sent to the server)
-// or from itineraries.json / history.json next to the page (claude.ai artifact)
+// ---- data: URL fragment #d=<deflate-raw JSON, base64url> (never sent to the server), else files next to the page
 async function fromFragment(){
   const m = location.hash.match(/^#d=([A-Za-z0-9_-]+)/);
   if (!m) return null;
@@ -395,26 +513,35 @@ async function fromFragment(){
   const bin = Uint8Array.from(atob(b64 + "=".repeat((4 - b64.length % 4) % 4)), c => c.charCodeAt(0));
   const j = await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).json();
   const routes = {}; for (const [rid, v] of Object.entries(j.r)) routes[rid] = {name:v[0], nid:v[1]};
-  const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs]) => ({
-    id: oid, walk_after_s: wa, legs: legs.map(([fn, tn, alts]) => ({from_name: fn, to_name: tn,
-      alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s]) => ({rid, from, to, ride_s, walk_before_s, headway_s}))}))}))}));
+  const trips = j.t.map(([id, label, priority, opts]) => ({id, label, priority, options: opts.map(([oid, wa, legs, fare, habit]) => ({
+    id: oid, walk_after_s: wa, fare: fare == null ? null : fare, habit: !!habit, legs: legs.map(([fn, tn, alts, hint]) => ({from_name: fn, to_name: tn, hint: hint || null,
+      alts: alts.map(([rid, from, to, ride_s, walk_before_s, headway_s, lines]) => ({rid, from, to, ride_s, walk_before_s, headway_s, lines: lines || ""}))}))}))}));
   return [{generated: j.g, routes, trips, stops: j.s || null}, j.h || null];
+}
+function fromFiles(it){ // itineraries.json shape -> page shape
+  for (const t of it.trips) for (const o of t.options){
+    o.habit = !!o.habit; o.fare = o.fare == null ? null : o.fare;
+    for (const lg of o.legs){ lg.hint = lg.exit_in || lg.exit_out || lg.car ? [lg.exit_in||"", lg.exit_out||"", lg.car||""] : null;
+      for (const a of lg.alts) a.lines = (a.lines || []).map(x => x[0]).join(""); }
+  }
+  return it;
 }
 async function boot(){
   trip = defaultTrip();
   const [data] = await Promise.all([
     fromFragment().then(d => d || Promise.all([
-      fetch("itineraries.json").then(r => r.json()),
-      fetch("history.json").then(r => r.ok ? r.json() : null).catch(() => null)])),
+      fetch("itineraries.json").then(r => { if (!r.ok) throw new Error("no data"); return r.json(); }).then(fromFiles),
+      fetch("history.json").then(r => r.ok ? r.json() : null).then(h => h && h.eta_error ? Object.assign(h, {e: Object.fromEntries(Object.entries(h.eta_error).map(([k,v]) => [k, [v.bias, v.p10, v.n]]))}) : h).catch(() => null)])),
     loadLive()
   ]);
   IT = data[0]; if (data[1]) H = Object.assign(H, data[1]);
-  renderTrips(); renderHere(); render(); autoLocate();
-  setInterval(async () => { if (!document.hidden){ await loadLive(); render(); } }, 30000);
-  // home-screen app resumed from the background: refresh at once instead of showing a stale answer
-  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ autoLocate(); await loadLive(); renderHere(); render(); } });
+  render(); autoLocate();
+  setInterval(() => { if (!document.hidden) render(); }, 15000);                         // countdown
+  setInterval(async () => { if (!document.hidden){ await loadLive(); render(); } }, 30000); // live ETAs
+  document.addEventListener("visibilitychange", async () => { if (!document.hidden){ autoLocate(); await loadLive(); render(); } });
 }
-boot().catch(e => { $("plan").textContent = "路線資料載入失敗，重新整理試試"; });
+boot().catch(() => { $("hero").innerHTML = location.hash ? `<div class="ctx">路線資料載入失敗，重新整理試試</div>`
+  : `<div class="ctx">這頁需要書籤網址（# 後面帶著你的路線）才會有內容</div>`; });
 })();
 </script>
 
