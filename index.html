@@ -15,7 +15,8 @@
 /* 共用設計規範（docs/UI規範.md 三）：顏色、字級、間距、元件尺寸只能用這裡的值。
    tools/ui_lint.py 會檢查頁面：font-size／顏色／間距不能寫死數值，只能用 var(--…)。
    字級：iOS 人機介面指南層級 34／28／22／17／15／13／12（最小 12）。間距：4 的倍數。
-   顏色只表示意義：路線色（官方色票）、延誤；其他一律灰階。 */
+   顏色只表示意義：路線色（官方色票）、延誤、可點／已選（iOS 系統藍 --accent）、正向（--ok）、領域圖示底色（--cat-*，一定配圖示＋名稱）；其他一律灰階。
+   2026-10-30 起加 iOS 原生外觀：分組背景 --grouped、卡片 --surface、細分隔線 --sep、材質底欄 --material（UI規範 三之二）。 */
 :root{
   /* type ladder */
   --fs-34:34px; --fs-28:28px; --fs-22:22px; --fs-17:17px; --fs-15:15px; --fs-13:13px; --fs-12:12px;
@@ -32,6 +33,9 @@
   --bw:1px; --bw-strong:2px; --rail:6px;
   --chip-h:24px; --chip-min:36px; --dot:14px;
   --tl-time:52px; --tl-rail:20px;
+  --chart-h:120px; --chart-h-lg:150px; --mark:24px; --side:340px; --wrap:1160px; --gutter:28px;
+  --r-lg:16px; --r-pill:999px; --bw-hair:0.5px; --bar-h:4px; --check:24px; --icon:24px;
+  --shadow:0 1px 2px rgba(0,0,0,.06);
 
   /* greys (light) */
   --bg:#ffffff; --surface:#ffffff; --fill:#ececec; --fill-2:#f4f4f4;
@@ -40,6 +44,9 @@
   --pri:#222222; --on-pri:#ffffff;
   --skeleton:#e6e6e6;
   --warn:#b3261e; --on-warn:#ffffff;            /* delay / missed: always with text + a shape */
+  --accent:#007aff; --on-accent:#ffffff; --accent-fill:#e8f1ff; --ok:#248a3d;
+  --cat-fit:#ff9500; --cat-money:#34c759; --cat-shop:#30b0c7; --cat-food:#ff2d55; --cat-ai:#af52de; --cat-sleep:#5856d6; --on-cat:#ffffff;  /* area icons: always icon + name */
+  --grouped:#f2f2f7; --sep:#c6c6c8; --material:rgba(249,249,249,.94); --disabled:#d1d1d6; --on-disabled:#8e8e93;
 
   /* official route colours (Taipei Metro line colours; Taipei City bus colour families follow them) */
   --mrt-br:#c48c31;   /* 文湖線 Brown */
@@ -60,6 +67,10 @@
   --skeleton:#2c2c2e;
   --warn:#ff6b60; --on-warn:#111111;
   --bus:#5a5a5e;
+  --accent:#0a84ff; --on-accent:#ffffff; --accent-fill:#0f2a48; --ok:#30d158;
+  --cat-fit:#ff9f0a; --cat-money:#30d158; --cat-shop:#40c8e0; --cat-food:#ff375f; --cat-ai:#bf5af2; --cat-sleep:#5e5ce6;
+  --grouped:#000000; --sep:#38383a; --material:rgba(22,22,24,.94); --disabled:#3a3a3c; --on-disabled:#8e8e93;
+  --shadow:none;
   color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --fill-2:#1c1c1e;
@@ -69,6 +80,10 @@
   --skeleton:#2c2c2e;
   --warn:#ff6b60; --on-warn:#111111;
   --bus:#5a5a5e;
+  --accent:#0a84ff; --on-accent:#ffffff; --accent-fill:#0f2a48; --ok:#30d158;
+  --cat-fit:#ff9f0a; --cat-money:#30d158; --cat-shop:#40c8e0; --cat-food:#ff375f; --cat-ai:#bf5af2; --cat-sleep:#5e5ce6;
+  --grouped:#000000; --sep:#38383a; --material:rgba(22,22,24,.94); --disabled:#3a3a3c; --on-disabled:#8e8e93;
+  --shadow:none;
   color-scheme:dark}
 </style>
 <style>
@@ -123,14 +138,17 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 .seg button:first-child{border-left:0}
 .seg button[aria-selected="true"]{background:var(--pri);color:var(--on-pri);font-weight:var(--fw-bold)}
 .lk{color:inherit;text-decoration:underline;text-underline-offset:3px;padding:var(--s3) var(--s0);margin:calc(-1 * var(--s3)) var(--s0);cursor:pointer}
-/* card: head / stats / badges / board line + 出發; when the board line is too long for the width, 出發 moves up to the badge row */
-.card.rc{display:grid;grid-template-columns:1fr auto;column-gap:var(--s2)}
+/* card: first boarding (HH:MM stop route) / walk to it / arrival / badges + 出發 */
+.card.rc{display:grid;grid-template-columns:1fr auto;column-gap:var(--s2);align-items:center}
 .card>.full{grid-column:1/-1}
-.card .badges{grid-column:1;grid-row:3;margin-top:var(--s2)}
-.card .what{grid-column:1;grid-row:4;margin-top:var(--s2);align-self:center;display:flex;flex-wrap:wrap;column-gap:var(--s2);row-gap:var(--s0);font-weight:var(--fw-bold);min-width:0}
-.card .go{grid-column:2;grid-row:4;margin-top:var(--s2)}
-.card.up .what{grid-column:1/-1}
-.card.up .go{grid-row:3}
+.card .badges{grid-column:1;margin-top:var(--s2)}
+.card .go{grid-column:2;margin-top:var(--s2)}
+/* a long stop name breaks inside, so it always starts on its time's line */
+.hl{word-break:normal}
+.hl .chip{vertical-align:middle}
+/* 我在: one tap sets the stop I am at */
+.btn.here{font-size:var(--fs-13);font-weight:var(--fw-regular);padding:var(--s0) var(--s3);background:var(--surface);border-color:var(--ink-3)}
+.btn.here[aria-pressed="true"]{border:var(--bw-strong) solid var(--accent);color:var(--accent);font-weight:var(--fw-bold)}
 .list>*{min-height:var(--tap);border-bottom:var(--bw) solid var(--line);display:flex;align-items:center;gap:var(--s2)}
 .list .opt{cursor:pointer}
 .brow{min-height:64px;flex-wrap:wrap;align-content:center;padding:var(--s2) var(--s0);cursor:pointer}
@@ -144,10 +162,11 @@ button:focus-visible,a:focus-visible,input:focus-visible,[tabindex]:focus-visibl
 .st .tm{font-size:var(--fs-17);font-weight:var(--fw-bold);min-height:32px;display:flex;align-items:center}
 .st .dot{width:var(--dot);height:var(--dot);border-radius:50%;border:3px solid var(--line-strong);background:var(--surface);justify-self:center;margin-top:var(--s2)}
 .st .dot.end{background:var(--line-strong)}
-.st .nm{font-size:var(--fs-17);font-weight:var(--fw-bold);display:flex;justify-content:space-between;align-items:center;gap:var(--s2);min-width:0;min-height:32px}
-.st .nm .n{padding:var(--s1) var(--s0)}
-.st .nm .n{min-width:0;overflow-wrap:anywhere}
-.st .nm .r{flex:none;font-size:var(--fs-13);font-weight:var(--fw-regular);color:var(--ink-2)}
+.st .nm{font-size:var(--fs-17);font-weight:var(--fw-bold);display:flex;flex-wrap:wrap;align-items:center;column-gap:var(--s2);min-width:0;min-height:32px}
+.st .nm .n{padding:var(--s1) var(--s0);min-width:0;word-break:normal}
+/* what to do at this stop: 上車 652 往 X / 轉 556 / 下車 / 抵達 */
+.st .nm .r{display:inline-flex;flex-wrap:wrap;align-items:center;column-gap:var(--s1);font-size:var(--fs-15);font-weight:var(--fw-regular);color:var(--ink)}
+.st .nm .r .g{font-size:var(--fs-13)}
 .sg{min-height:52px}
 .sg .rail{justify-self:center;width:var(--rail);background:var(--c,var(--bus))}
 .sg .rail.walk{width:0;background:transparent;border-left:3px dotted var(--ink-3)}
@@ -345,6 +364,41 @@ function sortEvs(evs, by){
             : fast;
   return evs.slice().sort(cmp);
 }
+// a card's headline is its first boarding, never the walk from the origin: {t, stop, route, walk}
+function headline(ev){
+  const p = ev.pick && ev.pick[0];
+  return p ? {t: p.board, stop: ev.o.legs[0].from_name, route: routeLabel(p.a), walk: p.walk} : null;
+}
+
+// ---- where am I: stops are the nodes. Standing at a stop of these routes makes it the origin.
+const HERE_M = 200, HERE_TTL = 30 * MIN, POS_TTL = 3 * MIN;
+// a first-boarding stop this close to the origin is the origin itself (home and the gym sit 45-65 m from one)
+const NEXT_DOOR_S = 120;
+function distM(a, b){ return Math.hypot((a[0]-b[0])*111000, (a[1]-b[1])*111000*Math.cos(a[0]*Math.PI/180)); }
+function boardStops(opts){ const out = []; for (const o of opts) for (const lg of o.legs) if (!out.includes(lg.from_name)) out.push(lg.from_name); return out; }
+function nextDoor(opts, stop){
+  const w = opts.filter(o => o.legs.length && o.legs[0].from_name === stop).flatMap(o => o.legs[0].alts.map(a => a.walk_before_s));
+  return w.length > 0 && Math.min(...w) <= NEXT_DOOR_S;
+}
+function snapStop(opts, ll, skip){
+  if (!ll || !S.IT.stops) return null;
+  let best = null;
+  for (const n of boardStops(opts)){
+    const p = S.IT.stops[n];
+    if (!p || n === skip || nextDoor(opts, n)) continue;
+    const d = distM(ll, p);
+    if (d <= HERE_M && (!best || d < best.d)) best = {n, d};
+  }
+  return best ? best.n : null;
+}
+// saved: a tapped choice {q: "from>to", stop (null = at the origin), not (gps stop to ignore), at}; pos: {ll, at}
+function resolveHere(opts, pos, saved, key, now){
+  const tap = saved && saved.q === key && now - saved.at < HERE_TTL ? saved : null;
+  const gps = pos && now - pos.at < POS_TTL ? snapStop(opts, pos.ll, tap && tap.not) : null;
+  if (gps) return {stop: gps, by: "gps"};
+  if (tap && tap.stop && boardStops(opts).includes(tap.stop)) return {stop: tap.stop, by: "tap"};
+  return null;
+}
 
 // ---- 出發 lock: the followed route never changes on refresh; only its own live times move
 function makeLock(ev, q, now){
@@ -425,12 +479,12 @@ const sput = (k, v) => store.set(k, JSON.stringify(v));
 const u = x => `<span class="u">${x}</span>`;   // keep together; wrap before it, never inside (unless it alone is too wide)
 function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
-const U = {view: "s1", sort: "fast", q: null, sel: null, excl: null, stop: null, missSel: 0, field: "to", text: "", net: "ok", err: null, lock: null, loaded: false};
+const U = {view: "s1", sort: "fast", q: null, sel: null, excl: null, stop: null, missSel: 0, field: "to", text: "", net: "ok", err: null, lock: null, loaded: false, geo: "wait", pos: null};
 
 const SEP = `<span class="sep">›</span>`;
 // a badge chain wraps only between "› badge" pairs, never leaving a "›" at a line end
 const chain = html => { const parts = html.split(SEP); return parts[0] + parts.slice(1).map(x => `<span class="nw">${SEP}${x}</span>`).join(""); };
-const dur = ev => Math.max(0, Math.floor(ev.arrive / MIN) - Math.floor(ev.leave / MIN));   // from the two times shown
+const dur = ev => Math.max(0, Math.floor(ev.arrive / MIN) - Math.floor(ev.leave / MIN));   // door to door, walk included
 function chip(a){
   if (isMrt(a)){
     const ls = (a.lines || "G").split("").filter(x => LINE[x]);
@@ -475,8 +529,26 @@ function queryTime(){
   }
   return q.time ? atClock(q.time, now) : now;
 }
+// where am I, for the current query: a stop (gps within 200 m, or a tapped 我在 chip) or null = the origin
+const HERE_KEY = "cm_here", qKey = q => q.from + ">" + q.to;
+function hereNow(baseOpts){
+  if (U.q.mode !== "dep" || U.q.time) return null;   // planning a later trip: from the origin
+  return resolveHere(baseOpts, U.geo === "ok" ? U.pos : null, sjson(HERE_KEY, null), qKey(U.q), +nowD());
+}
+function setHere(name, baseOpts){
+  const gps = U.geo === "ok" && U.pos ? resolveHere(baseOpts, U.pos, null, qKey(U.q), +nowD()) : null;
+  sput(HERE_KEY, {q: qKey(U.q), stop: name === U.q.from ? null : name, not: name === U.q.from && gps ? gps.stop : null, at: +nowD()});
+}
+// 我在 chips: boarding stops of the routes shown, first boardings first; none right next to the origin
+function hereChips(baseOpts, now){
+  const evs = sortEvs(baseOpts.map(o => evaluate(o, now)).filter(ev => ev && !ev.gone), "fast").slice(0, 3);
+  const names = [...new Set([...evs.map(ev => ev.o.legs[0] && ev.o.legs[0].from_name), ...evs.flatMap(ev => ev.o.legs.slice(1).map(lg => lg.from_name))])];
+  return names.filter(n => n && n !== U.q.from && !nextDoor(baseOpts, n)).slice(0, 3);
+}
 function results(){
-  const q = U.q, now = +nowD(), opts = findOptions(q.from, q.to);
+  const now = +nowD(), base = findOptions(U.q.from, U.q.to), here = hereNow(base);
+  const q = here ? {...U.q, from: here.stop} : U.q, opts = here ? findOptions(q.from, q.to) : base;
+  const chips = here || U.geo === "off" || U.geo === "denied" ? hereChips(base, now) : [];
   let t = queryTime(); if (t == null) t = now;
   S.useLive = q.mode === "dep" && Math.abs(t - now) < 30*MIN || q.mode === "arr" && t - now < 120*MIN;
   let evs = [], gone = [];
@@ -489,7 +561,7 @@ function results(){
     } else ev = evaluate(o, t, U.excl);
     if (ev && ev.gone) gone.push(ev); else if (ev) evs.push(ev);
   }
-  return {evs: sortEvs(evs, U.sort), gone, opts, t};
+  return {evs: sortEvs(evs, U.sort), gone, opts, t, here, from: q.from, chips, base};
 }
 
 // ---- screens
@@ -499,32 +571,48 @@ function fieldsHtml(focus){
     : `<div class="field" role="button" tabindex="0" data-go="s5" data-f="${k}"><span class="lb">${lb}</span><span class="v t17 b">${esc(q[k])}</span></div>`;
   return `<div class="row"><div class="col grow">${f("from", "出發地")}${f("to", "目的地")}</div><button type="button" class="btn" data-act="swap" aria-label="對調">⇅</button></div>`;
 }
-function queryBar(){   // S1: the whole query in one field (UI規範 三之一: nothing hidden, only compacted)
+function queryBar(from){   // S1: the whole query in one field (UI規範 三之一: nothing hidden, only compacted)
   const q = U.q;
-  return `<div class="row"><div class="field grow qs" role="button" tabindex="0" data-go="s5" data-f="to" aria-label="出發地 ${esc(q.from)}，目的地 ${esc(q.to)}，${timeLabel()}">
-    <span class="col grow"><span class="t17 b">${esc(q.from)} → ${esc(q.to)}</span><span class="row sp"><span class="t13 g nw">${timeLabel()}</span>${statusTag()}</span></span></div>
+  return `<div class="row"><div class="field grow qs" role="button" tabindex="0" data-go="s5" data-f="to" aria-label="出發地 ${esc(from)}，目的地 ${esc(q.to)}，${timeLabel()}">
+    <span class="col grow"><span class="t17 b">${esc(from)} → ${esc(q.to)}</span><span class="row sp"><span class="t13 g nw">${timeLabel()}</span>${statusTag()}</span></span></div>
     <button type="button" class="btn" data-act="swap" aria-label="對調">⇅</button></div>`;
 }
 function timeLabel(){
   const q = U.q;
   return q.mode === "first" ? "首班" : q.mode === "last" ? "末班" : q.mode === "arr" ? `抵達 ${q.time}` : q.time ? `出發 ${q.time}` : `現在 ${hm(nowD())}`;
 }
-function card(ev, i){
-  const o = ev.o, p = ev.pick[0];
-  const chips = chain(ev.pick.map(x => chip(x.a)).join(SEP));
-  const delay = ev.delay && U.net === "ok" ? `<span class="tag warn">${esc(routeLabel(p.a))} 延誤 ${ev.delay} 分</span>`
+// walk to a stop: "走 6 分", plus the MRT entrance when known
+function walkTxt(s, lg){ const exit = lg && lg.hint && lg.hint[0]; return `走 ${minsR(s)} 分` + (exit ? ` 到 ${esc(exit)} 號出口` : ""); }
+// the head shared by a card and S2: first boarding (HH:MM stop route), the walk to it, arrival
+function headHtml(ev, to, link){
+  const o = ev.o, h = headline(ev);
+  const stop = h && (link ? `<a class="lk" href="#" data-stop="${esc(h.stop)}">${esc(h.stop)}</a>` : esc(h.stop));
+  const a = ev.pick[0] && ev.pick[0].a, boarded = a && isMrt(a) ? {...a, lines: (a.lines || "G")[0]} : a;   // the line I board first
+  const top = h ? `<div class="t22 hl full">${hm(h.t)} ${stop} ${chip(boarded)}</div>` : `<div class="t22 full">${walkTxt(o.walk_after_s)}</div>`;
+  const walk = h && h.walk >= 30 ? `<div class="t13 g full">${walkTxt(h.walk, o.legs[0])}</div>` : "";
+  const p = ev.pick[0];
+  const tag = ev.delay && U.net === "ok" ? `<span class="tag warn">${esc(routeLabel(p.a))} 延誤 ${ev.delay} 分</span>`
     : p && !p.live && !isMrt(p.a) && S.LIVE && S.useLive && U.net === "ok" ? `<span class="tag">時刻表</span>` : "";
-  const what = p ? [hm(p.board), o.legs[0].from_name, routeLabel(p.a), "上車"] : [];
-  // estimated board-line width (15 px bold: CJK 16, digits/Latin 9.5, two ideographic spaces + one gap) vs room left of 出發
-  const est = what.join("").replace(/[\x00-\x7f]/g, "").length * 16 + what.join("").replace(/[^\x00-\x7f]/g, "").length * 9.5 + 2 * 15 + 8;
-  const room = Math.min(innerWidth, 560) - 32 - 28 - 72;
-  const full = Math.min(innerWidth, 560) - 32 - 28, mrtShort = p && isMrt(p.a) && est > full;
+  return `${top}${walk}
+    <div class="row wrap mt1 full"><span class="t15">${u(`${hm(ev.arrive)} ${esc(to)} 抵達｜`)}${u(`${dur(ev)} 分｜${o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(o)}`)}</span>${tag}</div>`;
+}
+function card(ev, i){
+  const chips = chain(ev.pick.map(x => chip(x.a)).join(SEP));
   const go = `<button type="button" class="btn go${i === 0 ? " pri" : ""}" data-lock="${i}">出發</button>`;
-  return `<div class="card rc${i === 0 ? " sel" : ""}${est > room ? " up" : ""}" data-open="${i}" role="button" tabindex="0">
-    <div class="t22 full">${hm(ev.leave)} ${esc(U.q.from)} → ${hm(ev.arrive)} ${esc(U.q.to)}</div>
-    <div class="row wrap mt1 full"><span class="t15 nw">${dur(ev)} 分｜${o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(o)}</span>${delay}</div>
-    ${chips ? `<div class="row wrap badges">${chips}</div>` : ""}
-    <span class="what t15">${p ? `<span class="u">${hm(p.board)}　<a class="lk" href="#" data-stop="${esc(o.legs[0].from_name)}">${esc(o.legs[0].from_name)}</a></span><span class="u">${mrtShort ? "" : esc(routeLabel(p.a)) + "　"}上車</span>` : ""}</span>${go}</div>`;
+  return `<div class="card rc${i === 0 ? " sel" : ""}" data-open="${i}" role="button" tabindex="0">
+    ${headHtml(ev, U.q.to, true)}
+    <div class="row wrap badges">${chips}</div>${go}</div>`;
+}
+const stationName = n => /站/.test(n) ? n : n + "站";
+// 你在 X站 (gps or a tapped stop); the 我在 row when location is off, or to change / undo the stop
+function hereHtml(r){
+  if (r.here && r.here.by === "gps")   // location placed me here; one tap undoes it (indoors next to a stop)
+    return `<div class="row sp mt2"><span class="t17 b">你在 ${esc(stationName(r.here.stop))}</span><button type="button" class="btn here" data-here="${esc(U.q.from)}">不在這站</button></div>`;
+  const head = r.here ? `<div class="t17 b mt2">你在 ${esc(stationName(r.here.stop))}</div>` : "";
+  if (!(r.here || U.geo === "off" || U.geo === "denied") || !r.chips.length) return head;
+  const cur = r.here ? r.here.stop : U.q.from;
+  return head + `<div class="row wrap mt2"><span class="t13 g">我在</span>${[U.q.from, ...r.chips].map(n =>
+    `<a href="#" class="btn here" data-here="${esc(n)}" aria-pressed="${n === cur}">${esc(n)}</a>`).join("")}</div>`;
 }
 let LAST = {evs: []};
 function renderS1(){
@@ -537,7 +625,7 @@ function renderS1(){
     err += `<div class="err"><span>${what}｜${u(esc(g.o.legs[0].from_name) + " " + esc(routeLabel(a)))}</span>${mrt >= 0 ? `<button type="button" class="btn" data-open="${mrt}">改搭捷運</button>` : `<button type="button" class="btn" data-go="s5">改時間</button>`}</div>`;
   }
   if (!r.evs.length) err += !r.opts.length ? noRoute() : `<div class="err"><span>查無班次</span><button type="button" class="btn" data-go="s5">改時間</button></div>`;
-  return `${queryBar()}
+  return `${queryBar(r.from)}${hereHtml(r)}
     <div class="seg mt2" role="tablist">${seg}</div>
     ${banners(r.evs)}${err}
     ${r.evs.slice(0, 3).map(card).join("")}`;
@@ -552,40 +640,35 @@ function noRoute(){
 // timeline rows (shared by S2 and S6)
 const stRow = (t, name, label, end, past) => `<div class="st${past ? " past" : ""}"><span class="tm">${t == null ? "" : hm(t)}</span><span class="dot${end ? " end" : ""}"></span><span class="nm"><span class="n">${esc(name)}</span><span class="r">${label}</span></span></div>`;
 const walkSeg = (txt, h) => `<div class="sg"${h ? ` style="min-height:${h}px"` : ""}><span></span><span class="rail walk"></span><span class="ct">${txt}</span></div>`;
-function rideSeg(a, lg, board, arr, extra){
+// the line between two stops: stops ridden, minutes, car hint, next departure; route + headsign only when its
+// boarding row is not shown (on the bus in S6)
+function rideSeg(a, lg, board, arr, extra, withRoute){
   const car = lg.hint && lg.hint[2] ? `<span>${esc(lg.hint[2])}</span>` : "";
-  return `<div class="sg" style="min-height:64px"><span></span><span class="rail" style="--c:${railColor(a)}"></span><span class="ct">
-    <span class="row wrap">${chip(a)}<span class="hd">${dirOf(a)}</span></span>
+  return `<div class="sg" style="min-height:52px"><span></span><span class="rail" style="--c:${railColor(a)}"></span><span class="ct">
+    ${withRoute ? `<span class="row wrap">${chip(a)}<span class="hd">${dirOf(a)}</span></span>` : ""}
     <span>${a.ns ? `${a.ns} 站｜` : ""}${minsR((arr - board)/1000)} 分</span>${car}${extra || ""}</span></div>`;
 }
+// walking between two stops: minutes, the next MRT entrance, the chance of making the next departure
 function xferSeg(s, prob){
-  const exit = s.lg.hint && s.lg.hint[0] ? `${esc(s.lg.hint[0])} 號出口` : "";
-  const parts = [`轉乘 ${esc(routeLabel(s.a))}`, s.walk >= 30 ? `步行 ${minsR(s.walk)} 分` : "", prob != null ? `趕上機率 ${Math.round(prob*100)}%` : "", exit].filter(Boolean);
-  return walkSeg(`<span class="hd">${parts.map((x, k) => u(x + (k < parts.length - 1 ? "｜" : ""))).join("")}</span>`);
+  const parts = [s.walk >= 30 ? walkTxt(s.walk, s.lg) : (s.lg.hint && s.lg.hint[0] ? `${esc(s.lg.hint[0])} 號出口` : ""), prob != null ? `趕上機率 ${Math.round(prob*100)}%` : ""].filter(Boolean);
+  return parts.length ? walkSeg(parts.map((x, k) => u(x + (k < parts.length - 1 ? "｜" : ""))).join("")) : "";
 }
+// norikae-style rows, each "time | stop | what to do there"; no origin row: the first node is the first boarding
 function timeline(steps, opts){
-  // steps: [{a, lg, board, arr, walk, prob, live}] ; opts: {from, leave, to, arrive, walkAfter, startAt (index), nextDep, liveMarks}
-  const h = [];
-  const start = opts.startAt || 0;
-  if (!start && opts.from != null){
-    h.push(stRow(opts.leave, opts.from, "出發"));
-  }
-  steps.forEach((s, k) => {
-    if (k < start) return;
-    const n = k;
-    if (n === 0 && opts.from != null && s.walk >= 30){
-      const exit = s.lg.hint && s.lg.hint[0] ? `｜${esc(s.lg.hint[0])} 號出口` : "";
-      h.push(walkSeg(`步行 ${minsR(s.walk)} 分${exit}`));
-    }
-    if (n > start || (n > 0 && n === start && opts.showXfer)) h.push(xferSeg(s, s.prob));
-    const liveMark = opts.liveMarks && s.live && n > start ? "　即時" : "";
-    if (!(opts.skipBoardOf === n)) h.push(stRow(s.board, s.lg.from_name, (n > 0 && opts.liveMarks ? esc(routeLabel(s.a)) + " " : "") + "上車" + liveMark));
-    const next = opts.nextDep && !isMrt(s.a) ? opts.nextDep(s) : "";
-    if (!(opts.skipBoardOf === n)) h.push(rideSeg(s.a, s.lg, s.board, s.arr, next));
-    const exitOut = s.lg.hint && s.lg.hint[1] ? `　${esc(s.lg.hint[1])} 號出口` : "";
-    h.push(stRow(s.arr, s.lg.to_name, "下車" + (opts.liveMarks && opts.liveArr === n ? "　即時" : "") + exitOut));
+  // steps: [{a, lg, board, arr, walk, prob, live}] ; opts: {to, arrive, walkAfter, walkFirst, startAt, skipBoardOf, nextDep, liveMarks, liveArr}
+  const h = [], start = opts.startAt || 0;
+  const act = (verb, a, live) => `<span class="nw">${verb}</span>${chip(a)}${a.dir ? `<span class="nw">${dirOf(a)}</span>` : ""}${live ? `<span class="g">即時</span>` : ""}`;
+  steps.forEach((s, n) => {
+    if (n < start) return;
+    if (n === 0 && opts.walkFirst && s.walk >= 30) h.push(walkSeg(walkTxt(s.walk, s.lg)));
+    if (n > start) h.push(xferSeg(s, s.prob));
+    const onIt = opts.skipBoardOf === n;
+    if (!onIt) h.push(stRow(s.board, s.lg.from_name, act(n ? "轉" : "上車", s.a, opts.liveMarks && s.live && n > start)));
+    h.push(rideSeg(s.a, s.lg, s.board, s.arr, opts.nextDep && !isMrt(s.a) && !onIt ? opts.nextDep(s) : "", onIt));
+    const exitOut = s.lg.hint && s.lg.hint[1] ? `<span class="nw">${esc(s.lg.hint[1])} 號出口</span>` : "";
+    h.push(stRow(s.arr, s.lg.to_name, `<span class="nw">下車</span>${exitOut}${opts.liveMarks && opts.liveArr === n ? `<span class="g">即時</span>` : ""}`));
   });
-  if (opts.walkAfter >= 30) h.push(walkSeg(`步行 ${minsR(opts.walkAfter)} 分`, 32));
+  if (opts.walkAfter >= 30) h.push(walkSeg(walkTxt(opts.walkAfter), 32));
   h.push(stRow(opts.arrive, opts.to, "抵達", true));
   return `<div class="tl">${h.join("")}</div>`;
 }
@@ -601,9 +684,9 @@ function renderS2(){
   const now = +nowD();
   const nextDep = s => { const c = legChoice({...s.a, walk_before_s: 0}, s.board - MIN, {[akey(s.a)]: s.board + MIN}); return c.none == null ? `<span class="fitbrk"><span class="nw">下一班 ${hm(c.board)}</span> ${esc(s.lg.from_name)}</span>` : ""; };
   return `${backBtn()}
-    <div class="t22">${hm(ev.leave)} ${esc(U.q.from)} → ${hm(ev.arrive)} ${esc(U.q.to)}</div>
-    <div class="row sp mt1"><span class="t15">${dur(ev)} 分｜${ev.o.legs.length ? `轉乘 ${transfers(ev)}` : "全程步行"}${fare(ev.o)}</span>${ev.delay ? `<span class="tag warn">${esc(routeLabel(ev.pick[0].a))} 延誤 ${ev.delay} 分</span>` : statusTag()}</div>
-    ${timeline(evSteps(ev), {from: U.q.from, leave: ev.leave, to: U.q.to, arrive: ev.arrive, walkAfter: ev.o.walk_after_s, nextDep})}
+    <div class="row sp"><span class="t13 g">${esc(ev.o.origin)} → ${esc(U.q.to)}</span>${statusTag()}</div>
+    ${headHtml(ev, U.q.to, false)}
+    ${timeline(evSteps(ev), {to: U.q.to, arrive: ev.arrive, walkAfter: ev.o.walk_after_s, nextDep, walkFirst: false})}   // the head already says 走 N 分
     <div class="foot"><button type="button" class="btn pri wide" data-act="lock">出發</button>${ev.pick.length ? `<button type="button" class="btn wide" data-act="later">改下一班</button>` : ""}</div>`;
 }
 function renderS3(){
@@ -677,7 +760,7 @@ function renderS6(){
     return `${head}
       <div class="next"><div class="row">${chip(s.a)}<span class="t22 nmx">${esc(s.lg.from_name)}</span><span class="t28 nw cdn">${w < 1 ? "進站" : "到站 " + Math.round(w) + " 分"}</span></div>
         <div class="t15 b mt1">${hm(s.board)}　${esc(s.lg.from_name)}　${s.live ? "即時" : "時刻表"}</div>
-        <div class="t15 mt1">${walkLeft > 0 ? `步行 ${walkLeft} 分｜` : ""}趕上機率 ${Math.round(s.prob*100)}%</div>${arriveLine}</div>
+        <div class="t15 mt1">${walkLeft > 0 ? `走 ${walkLeft} 分｜` : ""}趕上機率 ${Math.round(s.prob*100)}%</div>${arriveLine}</div>
       ${timeline(v.steps, {to, arrive: v.arrive, walkAfter: L.o.walk_after_s, startAt: v.leg, liveMarks: true})}
       <div class="foot">${more ? `<button type="button" class="btn wide" data-act="next">改下一班</button>` : ""}${end}</div>`;
   }
@@ -692,7 +775,7 @@ function renderS6(){
   }
   return `${head}
     <div class="next"><div class="row"><span class="t22 grow">${esc(to)}　抵達</span><span class="t28 nw">${hm(v.arrive)}</span></div>
-      ${L.o.walk_after_s >= 30 ? `<div class="t15 mt1">步行 ${minsUp(v.arrive - now)} 分｜${hm(v.arrive)}　${esc(to)}</div>` : ""}</div>
+      ${L.o.walk_after_s >= 30 ? `<div class="t15 mt1">走 ${minsUp(v.arrive - now)} 分｜${hm(v.arrive)}　${esc(to)}</div>` : ""}</div>
     <div class="foot">${end}</div>`;
 }
 let MISSED = [];
@@ -738,9 +821,10 @@ function pick(name){
   render();
 }
 document.addEventListener("click", e => {
-  const t = e.target.closest("[data-act],[data-lock],[data-open],[data-stop],[data-sort],[data-go],[data-pick],[data-mode],[data-miss],[data-board]");
+  const t = e.target.closest("[data-act],[data-lock],[data-open],[data-stop],[data-here],[data-sort],[data-go],[data-pick],[data-mode],[data-miss],[data-board]");
   if (!t || !S.IT) return;
   const d = t.dataset;
+  if (d.here !== undefined){ e.preventDefault(); setHere(d.here, LAST.base || findOptions(U.q.from, U.q.to)); U.excl = null; render(); return; }
   if (d.stop !== undefined){ e.preventDefault(); e.stopPropagation(); go("s3", {stop: d.stop}); return; }
   if (d.lock !== undefined){ e.stopPropagation(); const ev = LAST.evs[+d.lock]; if (ev) lockEv(ev); return; }
   if (d.open !== undefined){ const ev = LAST.evs[+d.open]; if (ev) go("s2", {sel: ev.o, excl: null}); return; }
@@ -759,7 +843,7 @@ document.addEventListener("click", e => {
     const tv = $("in-time") && $("in-time").value, typed = U.text.trim();
     if (typed){ const known = savedPlaces().includes(typed) || stopPlaces().some(s => s.name === typed); if (!known){ render(); return; } pick(typed); }
     const q = {...U.q, time: U.q.mode === "first" || U.q.mode === "last" ? null : (tv && tv !== hm(nowD()) ? tv : (U.q.mode === "arr" ? tv : null))};
-    setQuery(q); U.excl = null; U.view = "s1"; try{ history.pushState({view: "s1"}, ""); }catch(e){} render();
+    setQuery(q); store.del(HERE_KEY); U.excl = null; U.view = "s1"; try{ history.pushState({view: "s1"}, ""); }catch(e){} render();
   }
   else if (act === "lock"){ const ev = currentEv(); if (ev) lockEv(ev); }
   else if (act === "later"){ const ev = currentEv(); if (ev && ev.pick[0]){ U.excl = {...(U.excl || {}), [akey(ev.pick[0].a)]: ev.pick[0].board + MIN}; render(); } }
@@ -792,7 +876,7 @@ async function loadLive(){
     if (!S.LIVE){ const c = sjson("cm_live", null); if (c && Date.now() - c.at < 15*MIN) S.LIVE = {map: new Map(Object.entries(c.m)), at: c.at}; }
   }
 }
-async function refresh(){ await loadLive(); render(); }
+async function refresh(){ locate(); await loadLive(); render(); }
 
 // ---- data: URL fragment #d=<deflate-raw JSON, base64url> (never sent to the server)
 async function fromFragment(){
@@ -833,7 +917,9 @@ async function loadDemo(){
     const lo = {...o, legs: o.legs.map((lg, n) => ({...lg, alts: [lg.alts.find(a => routeLabel(a) === alts[n]) || lg.alts[0]]}))};
     U.lock = {v: 1, q: U.q, o: lo, T: st.lock.T.map(x => atClock(x, base)), live: lo.legs.map(() => true), passed: lo.legs.map(() => false), start: atClock(st.lock.start, base), at: atClock(st.lock.start, base)};
   }
-  if (st.view === "s2"){ U.sel = findOptions(U.q.from, U.q.to).find(x => x.id === st.sel); U.view = "s2"; }
+  if (st.geo === "denied") U.geo = "denied";
+  else if (st.geo){ U.pos = {ll: st.geo, at: S.clock}; U.geo = "ok"; }
+  if (st.view === "s2"){ const r = results(); U.sel = r.opts.find(x => x.id.split(":")[0] === st.sel); U.view = "s2"; }
   if (st.view === "s3"){ U.stop = st.stop; U.view = "s3"; }
   if (st.view === "s5"){ U.view = "s5"; U.field = st.field || "to"; U.text = st.text || ""; }
   if (st.loading){ S.IT = null; return; }
@@ -863,8 +949,9 @@ function lintDump(){ // layout facts for tools/ui_lint.py (headless Chrome --dum
     }
     const out = {width: innerWidth, scrollWidth: document.documentElement.scrollWidth, height: Math.ceil(app.getBoundingClientRect().bottom + 24),
       lines: [...lines.entries()].sort((a, b) => a[0] - b[0]).map(([, v]) => ({text: v.text.sort((a, b) => a[0] - b[0]).map(x => x[1]).join(" "), exempt: v.exempt})),
-      buttons: [...app.querySelectorAll("button, a.btn:not([data-stop])")].map(b => ({text: b.textContent.trim(), label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height)})),
-      taps: [...app.querySelectorAll("[role=button], a.lk, a[data-stop], label.field")].map(b => ({text: b.textContent.trim().slice(0, 20), h: Math.round(b.getBoundingClientRect().height), hit: b.matches("a.lk") ? Math.round(parseFloat(getComputedStyle(b).paddingTop) * 2 + b.getBoundingClientRect().height) : null})),
+      // stop pickers (a[data-stop], a[data-here]) carry a stop name, not a verb: tap size only
+      buttons: [...app.querySelectorAll("button, a.btn:not([data-stop]):not([data-here])")].map(b => ({text: b.textContent.trim(), label: b.getAttribute("aria-label"), w: Math.round(b.getBoundingClientRect().width), h: Math.round(b.getBoundingClientRect().height)})),
+      taps: [...app.querySelectorAll("[role=button], a.lk, a[data-stop], a[data-here], label.field")].map(b => ({text: b.textContent.trim().slice(0, 20), h: Math.round(b.getBoundingClientRect().height), hit: b.matches("a.lk") ? Math.round(parseFloat(getComputedStyle(b).paddingTop) * 2 + b.getBoundingClientRect().height) : null})),
       places: S.IT ? [...savedPlaces(), ...stopPlaces().map(s => s.name)] : []};
     let el = document.getElementById("lint-out"); if (!el){ el = document.createElement("script"); el.type = "application/json"; el.id = "lint-out"; document.body.appendChild(el); }
     el.textContent = JSON.stringify(out);
@@ -881,24 +968,24 @@ async function boot(){
   U.q = defaultQuery();
   U.lock = loadLock(store, +nowD());
   try{ history.replaceState({view: "s1"}, ""); }catch(e){}
-  render(); autoStop();
+  render(); locate();
   setInterval(() => { if (!document.hidden) render(); }, 15000);
   setInterval(() => { if (!document.hidden) refresh(); }, 30000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
   addEventListener("resize", () => render());
   addEventListener("online", refresh); addEventListener("offline", () => { U.net = "offline"; render(); });
 }
-// at a boarding stop (within 150 m, location already allowed, nothing locked): open its board (S3). Never prompts.
-async function autoStop(){
-  if (!S.IT.stops || !navigator.geolocation || !navigator.permissions) return;
-  try{ const p = await navigator.permissions.query({name: "geolocation"}); if (p.state !== "granted") return; }catch(e){ return; }
-  navigator.geolocation.getCurrentPosition(pos => {
-    if (U.lock || U.view !== "s1") return;
-    const {latitude: la, longitude: lo} = pos.coords; let best = null;
-    for (const o of findOptions(U.q.from, U.q.to)) for (const lg of o.legs.slice(0, 1)){ const p = S.IT.stops[lg.from_name]; if (!p) continue;
-      const d = Math.hypot((la-p[0])*111000, (lo-p[1])*111000*Math.cos(la*Math.PI/180)); if (!best || d < best.d) best = {n: lg.from_name, d}; }
-    if (best && best.d <= 150) go("s3", {stop: best.n});
-  }, () => {}, {maximumAge: 60000, timeout: 8000, enableHighAccuracy: true});
+// where am I (on load and every refresh). The first call asks once; after a denial it stops asking.
+// A fix worse than 200 m cannot place me at a stop: same as no location (the 我在 chips show).
+function locate(){
+  if (DEMO || U.geo === "denied" || U.locating) return;   // one request at a time: no second prompt while Safari asks
+  if (!S.IT.stops || !navigator.geolocation){ U.geo = "off"; return; }
+  U.locating = true;
+  navigator.geolocation.getCurrentPosition(p => {
+    U.locating = false;
+    U.pos = {ll: [p.coords.latitude, p.coords.longitude], at: +nowD()};
+    U.geo = p.coords.accuracy > HERE_M ? "off" : "ok"; render();
+  }, e => { U.locating = false; U.geo = e.code === 1 ? "denied" : "off"; render(); }, {maximumAge: 30000, timeout: 10000, enableHighAccuracy: true});
 }
 boot().catch(err => { $("app").innerHTML = `<div class="err"><span>載入失敗｜重新整理</span><button type="button" class="btn" data-act="hardreload" onclick="location.reload()">重新整理</button></div>`; if (DEMO) console.error(err); });
 })();
